@@ -38,6 +38,10 @@ These projects are developed under the [Robius](https://github.com/project-robiu
 |-----------------|-----------|
 | ![More](asserts/mc3.png) | ![Demo](asserts/mc4.png) |
 
+### Web Demo (WebAssembly)
+
+![Web Demo](assets/component-zoo-web.png)
+
 ## Features
 
 ### Components (v0.1.0)
@@ -49,15 +53,16 @@ These projects are developed under the [Robius](https://github.com/project-robiu
 - **Divider** - Horizontal/vertical separators
 - **Progress** - Linear progress bar
 - **Slider** - Single/Range mode, Vertical, Logarithmic scale, Disabled state
+- **Badge** - Notification badges with variants
+- **Tooltip** - Four positions with edge detection and auto-flip
+- **Input** - Text input field
 
 ### Coming Soon
 
-- TextInput
-- Badge
-- Tooltip
 - Spinner
 - Modal
 - Dropdown
+- Select
 - And more...
 
 ## Installation
@@ -99,6 +104,8 @@ live_design! {
 
 ## Running the Demo
 
+### Desktop
+
 ```bash
 # Clone the repository
 git clone https://github.com/aspect-ui/makepad-component
@@ -106,6 +113,23 @@ cd makepad-component
 
 # Run the component zoo demo
 cargo run -p component-zoo
+```
+
+### Web (WebAssembly)
+
+```bash
+# Install cargo-makepad (if not installed)
+cargo install --force --git https://github.com/makepad/makepad.git --branch rik cargo-makepad
+
+# Install wasm toolchain
+cargo makepad wasm install-toolchain
+
+# Build for web
+cargo makepad wasm build -p component-zoo --release
+
+# Serve locally (requires Python 3)
+python3 serve_wasm.py 8080
+# Open http://localhost:8080 in your browser
 ```
 
 ---

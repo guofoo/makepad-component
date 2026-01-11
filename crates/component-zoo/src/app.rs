@@ -5,6 +5,7 @@ use makepad_component::widgets::MpSwitchWidgetRefExt;
 use makepad_component::widgets::MpRadioWidgetRefExt;
 use makepad_component::widgets::MpProgressWidgetRefExt;
 use makepad_component::widgets::MpSliderWidgetRefExt;
+use makepad_component::widgets::MpBadgeWidgetRefExt;
 
 live_design! {
     use link::theme::*;
@@ -19,6 +20,9 @@ live_design! {
     use makepad_component::widgets::radio::*;
     use makepad_component::widgets::progress::*;
     use makepad_component::widgets::slider::*;
+    use makepad_component::widgets::input::*;
+    use makepad_component::widgets::badge::*;
+    use makepad_component::widgets::tooltip::*;
 
     App = {{App}} {
         ui: <Root> {
@@ -583,6 +587,612 @@ live_design! {
 
                     <MpDivider> {}
 
+                    // ===== Input Section =====
+                    <View> {
+                        width: Fill, height: Fit,
+                        flow: Down,
+                        spacing: 16,
+
+                        <Label> {
+                            draw_text: {
+                                text_style: <THEME_FONT_BOLD>{ font_size: 18.0 }
+                                color: (FOREGROUND)
+                            }
+                            text: "Input"
+                        }
+
+                        // Default input
+                        <View> {
+                            width: Fill, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Default"
+                            }
+
+                            input_default = <MpInput> {
+                                width: 300,
+                                empty_text: "Enter your name..."
+                            }
+                        }
+
+                        // Sizes
+                        <View> {
+                            width: Fill, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Sizes"
+                            }
+
+                            <View> {
+                                width: Fit, height: Fit,
+                                flow: Down,
+                                spacing: 12,
+
+                                <MpInputSmall> {
+                                    width: 250,
+                                    empty_text: "Small input..."
+                                }
+                                <MpInput> {
+                                    width: 300,
+                                    empty_text: "Medium input..."
+                                }
+                                <MpInputLarge> {
+                                    width: 350,
+                                    empty_text: "Large input..."
+                                }
+                            }
+                        }
+
+                        // Special inputs
+                        <View> {
+                            width: Fill, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Special Types"
+                            }
+
+                            <View> {
+                                width: Fit, height: Fit,
+                                flow: Down,
+                                spacing: 12,
+
+                                input_password = <MpInputPassword> {
+                                    width: 300
+                                }
+                                <MpInputNumeric> {
+                                    width: 200,
+                                    empty_text: "Numbers only..."
+                                }
+                                <MpInputSearch> {
+                                    width: 300
+                                }
+                            }
+                        }
+
+                        // Borderless input
+                        <View> {
+                            width: Fill, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Borderless (inline editing)"
+                            }
+
+                            <MpInputBorderless> {
+                                width: 300,
+                                empty_text: "Click to edit..."
+                            }
+                        }
+
+                        // Input with value display
+                        <View> {
+                            width: Fill, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Interactive"
+                            }
+
+                            input_interactive = <MpInput> {
+                                width: 300,
+                                empty_text: "Type something..."
+                            }
+
+                            input_status = <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Value: (empty)"
+                            }
+                        }
+                    }
+
+                    <MpDivider> {}
+
+                    // ===== Badge Section =====
+                    <View> {
+                        width: Fill, height: Fit,
+                        flow: Down,
+                        spacing: 16,
+
+                        <Label> {
+                            draw_text: {
+                                text_style: <THEME_FONT_BOLD>{ font_size: 18.0 }
+                                color: (FOREGROUND)
+                            }
+                            text: "Badge"
+                        }
+
+                        // Badge with numbers
+                        <View> {
+                            width: Fit, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "With Count"
+                            }
+
+                            <View> {
+                                width: Fit, height: Fit,
+                                flow: Right,
+                                spacing: 32,
+                                padding: { top: 8, bottom: 8 }
+
+                                // Badge on button
+                                <MpBadge> {
+                                    count: 5
+                                    content = { <MpButton> { text: "Messages" } }
+                                }
+
+                                // Badge on button (large count)
+                                <MpBadge> {
+                                    count: 128
+                                    content = { <MpButton> { text: "Notifications" } }
+                                }
+
+                                // Badge on icon (simulated with view)
+                                <MpBadge> {
+                                    count: 3
+                                    content = {
+                                        <View> {
+                                            width: 40, height: 40,
+                                            show_bg: true,
+                                            draw_bg: { color: #E5E7EB }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Color variants
+                        <View> {
+                            width: Fit, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Color Variants"
+                            }
+
+                            <View> {
+                                width: Fit, height: Fit,
+                                flow: Right,
+                                spacing: 32,
+                                padding: { top: 8, bottom: 8 }
+
+                                <MpBadge> {
+                                    count: 5
+                                    content = { <View> { width: 40, height: 40, show_bg: true, draw_bg: { color: #E5E7EB } } }
+                                }
+
+                                <MpBadgeSuccess> {
+                                    count: 12
+                                    content = { <View> { width: 40, height: 40, show_bg: true, draw_bg: { color: #E5E7EB } } }
+                                }
+
+                                <MpBadgeWarning> {
+                                    count: 8
+                                    content = { <View> { width: 40, height: 40, show_bg: true, draw_bg: { color: #E5E7EB } } }
+                                }
+
+                                <MpBadgeInfo> {
+                                    count: 99
+                                    content = { <View> { width: 40, height: 40, show_bg: true, draw_bg: { color: #E5E7EB } } }
+                                }
+
+                                <MpBadgeSecondary> {
+                                    count: 7
+                                    content = { <View> { width: 40, height: 40, show_bg: true, draw_bg: { color: #E5E7EB } } }
+                                }
+                            }
+                        }
+
+                        // Dot badges
+                        <View> {
+                            width: Fit, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Dot Style"
+                            }
+
+                            <View> {
+                                width: Fit, height: Fit,
+                                flow: Right,
+                                spacing: 32,
+                                padding: { top: 8, bottom: 8 }
+
+                                <MpBadgeDot> {
+                                    content = { <View> { width: 40, height: 40, show_bg: true, draw_bg: { color: #E5E7EB } } }
+                                }
+
+                                <MpBadgeDotSuccess> {
+                                    content = { <View> { width: 40, height: 40, show_bg: true, draw_bg: { color: #E5E7EB } } }
+                                }
+
+                                <MpBadgeDotWarning> {
+                                    content = { <View> { width: 40, height: 40, show_bg: true, draw_bg: { color: #E5E7EB } } }
+                                }
+                            }
+                        }
+
+                        // Standalone badges (inline)
+                        <View> {
+                            width: Fit, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Standalone (inline)"
+                            }
+
+                            <View> {
+                                width: Fit, height: Fit,
+                                flow: Right,
+                                spacing: 8,
+                                align: { y: 0.5 }
+                                padding: { top: 8, bottom: 8 }
+
+                                <MpBadgeStandalone> { label = { text: "5" } }
+                                <MpBadgeStandaloneSuccess> { label = { text: "New" } }
+                                <MpBadgeStandaloneWarning> { label = { text: "99+" } }
+                                <MpBadgeStandaloneInfo> { label = { text: "Beta" } }
+                            }
+                        }
+
+                        // Interactive badge
+                        <View> {
+                            width: Fit, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Interactive"
+                            }
+
+                            <View> {
+                                width: Fit, height: Fit,
+                                flow: Right,
+                                spacing: 16,
+                                align: { y: 0.5 }
+                                padding: { top: 8, bottom: 8 }
+
+                                interactive_badge = <MpBadge> {
+                                    count: 0
+                                    show_zero: true
+                                    content = {
+                                        <View> {
+                                            width: 48, height: 48,
+                                            show_bg: true,
+                                            draw_bg: {
+                                                color: #3B82F6
+                                                fn pixel(self) -> vec4 {
+                                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                                    sdf.box(0., 0., self.rect_size.x, self.rect_size.y, 8.0);
+                                                    sdf.fill(self.color);
+                                                    return sdf.result;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                badge_inc_btn = <MpButtonPrimary> { text: "+1" }
+                                badge_dec_btn = <MpButtonSecondary> { text: "-1" }
+
+                                badge_count_label = <Label> {
+                                    draw_text: {
+                                        text_style: <THEME_FONT_REGULAR>{ font_size: 14.0 }
+                                        color: (FOREGROUND)
+                                    }
+                                    text: "Count: 0"
+                                }
+                            }
+                        }
+                    }
+
+                    <MpDivider> {}
+
+                    // ===== Tooltip Section =====
+                    <View> {
+                        width: Fill, height: Fit,
+                        flow: Down,
+                        spacing: 16,
+
+                        <Label> {
+                            draw_text: {
+                                text_style: <THEME_FONT_BOLD>{ font_size: 18.0 }
+                                color: (FOREGROUND)
+                            }
+                            text: "Tooltip"
+                        }
+
+                        // Tooltip positions
+                        <View> {
+                            width: Fit, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Positions"
+                            }
+
+                            <View> {
+                                width: Fit, height: Fit,
+                                flow: Right,
+                                spacing: 24,
+                                padding: { top: 32, bottom: 16 }
+
+                                <MpTooltipTop> {
+                                    tip: "This tooltip appears on top"
+                                    content = { <MpButtonSecondary> { text: "Top" } }
+                                }
+
+                                <MpTooltipBottom> {
+                                    tip: "This tooltip appears below"
+                                    content = { <MpButtonSecondary> { text: "Bottom" } }
+                                }
+
+                                <MpTooltipLeft> {
+                                    tip: "Left side"
+                                    content = { <MpButtonSecondary> { text: "Left" } }
+                                }
+
+                                <MpTooltipRight> {
+                                    tip: "Right side"
+                                    content = { <MpButtonSecondary> { text: "Right" } }
+                                }
+                            }
+                        }
+
+                        // Tooltip examples
+                        <View> {
+                            width: Fit, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "On Buttons"
+                            }
+
+                            <View> {
+                                width: Fit, height: Fit,
+                                flow: Right,
+                                spacing: 24,
+                                padding: { top: 16, bottom: 16 }
+
+                                <MpTooltipTop> {
+                                    tip: "Primary action button"
+                                    content = { <MpButtonPrimary> { text: "Primary" } }
+                                }
+
+                                <MpTooltipTop> {
+                                    tip: "Secondary action button"
+                                    content = { <MpButtonSecondary> { text: "Secondary" } }
+                                }
+
+                                <MpTooltipTop> {
+                                    tip: "This will delete the item permanently"
+                                    content = { <MpButtonDanger> { text: "Delete" } }
+                                }
+                            }
+                        }
+
+                        // Tooltip on different elements
+                        <View> {
+                            width: Fit, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "On Different Elements"
+                            }
+
+                            <View> {
+                                width: Fit, height: Fit,
+                                flow: Right,
+                                spacing: 24,
+                                align: { y: 0.5 }
+                                padding: { top: 16, bottom: 16 }
+
+                                <MpTooltipTop> {
+                                    tip: "This is a helpful tip for the icon"
+                                    content = {
+                                        <View> {
+                                            width: 40, height: 40,
+                                            show_bg: true,
+                                            draw_bg: {
+                                                color: #3B82F6
+                                                fn pixel(self) -> vec4 {
+                                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                                    sdf.circle(self.rect_size.x * 0.5, self.rect_size.y * 0.5, 20.0);
+                                                    sdf.fill(self.color);
+                                                    return sdf.result;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                <MpTooltipTop> {
+                                    tip: "Click to learn more"
+                                    content = {
+                                        <Label> {
+                                            draw_text: {
+                                                text_style: <THEME_FONT_REGULAR>{ font_size: 14.0 }
+                                                color: #3B82F6
+                                            }
+                                            text: "Hover over me"
+                                        }
+                                    }
+                                }
+
+                                <MpTooltipTop> {
+                                    tip: "Danger zone! This action cannot be undone."
+                                    content = { <MpButtonDanger> { text: "Delete" } }
+                                }
+                            }
+                        }
+
+                        // Advanced options
+                        <View> {
+                            width: Fit, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Advanced Options"
+                            }
+
+                            <View> {
+                                width: Fit, height: Fit,
+                                flow: Right,
+                                spacing: 24,
+                                padding: { top: 16, bottom: 16 }
+
+                                // Custom delay (0.5s)
+                                <MpTooltipTop> {
+                                    tip: "This tooltip has a 0.5s delay"
+                                    show_delay: 0.5
+                                    content = { <MpButtonSecondary> { text: "Delay 0.5s" } }
+                                }
+
+                                // Instant (no delay)
+                                <MpTooltipTop> {
+                                    tip: "This tooltip appears instantly"
+                                    show_delay: 0.0
+                                    content = { <MpButtonSecondary> { text: "Instant" } }
+                                }
+
+                                // Custom gap
+                                <MpTooltipTop> {
+                                    tip: "This tooltip has a larger gap (10px)"
+                                    gap: 10.0
+                                    content = { <MpButtonSecondary> { text: "Gap 10px" } }
+                                }
+
+                                // Custom arrow size
+                                <MpTooltipTop> {
+                                    tip: "This tooltip has a larger arrow"
+                                    arrow_size: vec2(16.0, 10.0)
+                                    content = { <MpButtonSecondary> { text: "Large Arrow" } }
+                                }
+                            }
+                        }
+
+                        // Edge detection demo
+                        <View> {
+                            width: Fit, height: Fit,
+                            flow: Down,
+                            spacing: 8,
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 12.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Edge Detection (try near window edges)"
+                            }
+
+                            <Label> {
+                                draw_text: {
+                                    text_style: <THEME_FONT_REGULAR>{ font_size: 11.0 }
+                                    color: (MUTED_FOREGROUND)
+                                }
+                                text: "Tooltips automatically flip when they would go off-screen"
+                            }
+                        }
+                    }
+
+                    <MpDivider> {}
+
                     // ===== Interactive Demo =====
                     <View> {
                         width: Fit, height: Fit,
@@ -736,6 +1346,31 @@ impl MatchEvent for App {
             let v = value.end();
             self.ui.label(id!(slider_vert_label)).set_text(cx, &format!("Vertical value: {}", v as i32));
             log!("Vertical slider value: {}", v);
+        }
+
+        // Handle input changes
+        if let Some(text) = self.ui.text_input(id!(input_interactive)).changed(&actions) {
+            let display = if text.is_empty() {
+                "Value: (empty)".to_string()
+            } else {
+                format!("Value: {}", text)
+            };
+            self.ui.label(id!(input_status)).set_text(cx, &display);
+            log!("Input changed: {}", text);
+        }
+
+        // Handle badge buttons
+        if self.ui.mp_button(id!(badge_inc_btn)).clicked(&actions) {
+            let current = self.ui.mp_badge(id!(interactive_badge)).count();
+            let new_count = current + 1;
+            self.ui.mp_badge(id!(interactive_badge)).set_count(cx, new_count);
+            self.ui.label(id!(badge_count_label)).set_text(cx, &format!("Count: {}", new_count));
+        }
+        if self.ui.mp_button(id!(badge_dec_btn)).clicked(&actions) {
+            let current = self.ui.mp_badge(id!(interactive_badge)).count();
+            let new_count = (current - 1).max(0);
+            self.ui.mp_badge(id!(interactive_badge)).set_count(cx, new_count);
+            self.ui.label(id!(badge_count_label)).set_text(cx, &format!("Count: {}", new_count));
         }
     }
 }
