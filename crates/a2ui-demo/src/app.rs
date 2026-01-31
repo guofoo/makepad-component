@@ -248,8 +248,17 @@ fn get_sample_product_catalog() -> String {
                         "component": {
                             "Row": {
                                 "children": {
-                                    "explicitList": ["product-1-info", "product-1-btn"]
+                                    "explicitList": ["product-1-image", "product-1-info", "product-1-btn"]
                                 }
+                            }
+                        }
+                    },
+                    {
+                        "id": "product-1-image",
+                        "component": {
+                            "Image": {
+                                "url": {"literalString": "https://example.com/headphones.jpg"},
+                                "usageHint": "smallFeature"
                             }
                         }
                     },
@@ -316,8 +325,17 @@ fn get_sample_product_catalog() -> String {
                         "component": {
                             "Row": {
                                 "children": {
-                                    "explicitList": ["product-2-info", "product-2-btn"]
+                                    "explicitList": ["product-2-image", "product-2-info", "product-2-btn"]
                                 }
+                            }
+                        }
+                    },
+                    {
+                        "id": "product-2-image",
+                        "component": {
+                            "Image": {
+                                "url": {"literalString": "https://example.com/mouse.jpg"},
+                                "usageHint": "smallFeature"
                             }
                         }
                     },
@@ -384,8 +402,17 @@ fn get_sample_product_catalog() -> String {
                         "component": {
                             "Row": {
                                 "children": {
-                                    "explicitList": ["product-3-info", "product-3-btn"]
+                                    "explicitList": ["product-3-image", "product-3-info", "product-3-btn"]
                                 }
+                            }
+                        }
+                    },
+                    {
+                        "id": "product-3-image",
+                        "component": {
+                            "Image": {
+                                "url": {"literalString": "https://example.com/keyboard.jpg"},
+                                "usageHint": "smallFeature"
                             }
                         }
                     },

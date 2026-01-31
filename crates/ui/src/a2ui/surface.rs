@@ -30,6 +30,23 @@ live_design! {
 
     use crate::theme::colors::*;
 
+    // DrawImage for rendering actual images with rounded corners
+    DrawA2uiImage = {{DrawA2uiImage}} {
+        texture image: texture2d
+        instance border_radius: 4.0
+
+        fn pixel(self) -> vec4 {
+            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
+
+            // Sample image texture
+            let img_color = sample2d(self.image, self.pos);
+
+            sdf.fill(img_color);
+            return sdf.result;
+        }
+    }
+
     // A2UI Surface - Root container for A2UI component rendering
     pub A2uiSurface = {{A2uiSurface}} {
         width: Fill
@@ -104,6 +121,45 @@ live_design! {
             }
             color: #FFFFFF
         }
+
+        // Image placeholder background
+        draw_image_placeholder: {
+            instance border_radius: 4.0
+
+            fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, self.border_radius);
+
+                // Diagonal stripes pattern for placeholder
+                let stripe_width = 8.0;
+                let pos = self.pos * self.rect_size;
+                let stripe = mod(pos.x + pos.y, stripe_width * 2.0);
+                let is_stripe = step(stripe_width, stripe);
+
+                let color1 = vec4(0.25, 0.28, 0.35, 1.0);  // Dark gray
+                let color2 = vec4(0.30, 0.33, 0.40, 1.0);  // Slightly lighter
+
+                let bg_color = mix(color1, color2, is_stripe);
+                sdf.fill(bg_color);
+                return sdf.result;
+            }
+        }
+
+        // Text for image placeholder label
+        draw_image_text: {
+            text_style: <THEME_FONT_REGULAR> {
+                font_size: 11.0
+            }
+            color: #888888
+        }
+
+        // Actual image drawing
+        draw_image: <DrawA2uiImage> {}
+
+        // Image resources
+        img_headphones: dep("crate://self/resources/headphones.jpg")
+        img_mouse: dep("crate://self/resources/mouse.jpg")
+        img_keyboard: dep("crate://self/resources/keyboard.jpg")
     }
 
     // A2UI Text component
@@ -230,6 +286,17 @@ live_design! {
 }
 
 // ============================================================================
+// DrawA2uiImage - for rendering images with border radius
+// ============================================================================
+
+#[derive(Live, LiveHook, LiveRegister)]
+#[repr(C)]
+pub struct DrawA2uiImage {
+    #[deref]
+    draw_super: DrawQuad,
+}
+
+// ============================================================================
 // A2UI Surface Widget
 // ============================================================================
 
@@ -267,6 +334,36 @@ pub struct A2uiSurface {
     /// Draw text for button labels (drawn after button background)
     #[live]
     draw_button_text: DrawText,
+
+    /// Draw image placeholder background
+    #[redraw]
+    #[live]
+    draw_image_placeholder: DrawColor,
+
+    /// Draw text for image placeholder
+    #[live]
+    draw_image_text: DrawText,
+
+    /// Draw actual image
+    #[redraw]
+    #[live]
+    draw_image: DrawA2uiImage,
+
+    /// Image sources (preloaded)
+    #[live]
+    img_headphones: LiveDependency,
+    #[live]
+    img_mouse: LiveDependency,
+    #[live]
+    img_keyboard: LiveDependency,
+
+    /// Loaded textures for images
+    #[rust]
+    texture_headphones: Option<Texture>,
+    #[rust]
+    texture_mouse: Option<Texture>,
+    #[rust]
+    texture_keyboard: Option<Texture>,
 
     /// Surface ID
     #[live]
@@ -309,6 +406,60 @@ impl A2uiSurface {
     pub fn init_processor(&mut self) {
         if self.processor.is_none() {
             self.processor = Some(A2uiMessageProcessor::with_standard_catalog());
+        }
+    }
+
+    /// Load image textures from LiveDependency resources
+    fn load_image_textures(&mut self, cx: &mut Cx) {
+        use makepad_widgets::image_cache::ImageBuffer;
+
+        // Load headphones image (JPG)
+        if self.texture_headphones.is_none() {
+            let path = self.img_headphones.as_str();
+            if !path.is_empty() {
+                if let Ok(data) = cx.get_dependency(path) {
+                    if let Ok(image) = ImageBuffer::from_jpg(&data) {
+                        self.texture_headphones = Some(image.into_new_texture(cx));
+                    }
+                }
+            }
+        }
+
+        // Load mouse image (JPG)
+        if self.texture_mouse.is_none() {
+            let path = self.img_mouse.as_str();
+            if !path.is_empty() {
+                if let Ok(data) = cx.get_dependency(path) {
+                    if let Ok(image) = ImageBuffer::from_jpg(&data) {
+                        self.texture_mouse = Some(image.into_new_texture(cx));
+                    }
+                }
+            }
+        }
+
+        // Load keyboard image (JPG)
+        if self.texture_keyboard.is_none() {
+            let path = self.img_keyboard.as_str();
+            if !path.is_empty() {
+                if let Ok(data) = cx.get_dependency(path) {
+                    if let Ok(image) = ImageBuffer::from_jpg(&data) {
+                        self.texture_keyboard = Some(image.into_new_texture(cx));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Get texture index for a given URL (0=headphones, 1=mouse, 2=keyboard, None=not found)
+    fn get_texture_index_for_url(&self, url: &str) -> Option<usize> {
+        if url.contains("headphones") && self.texture_headphones.is_some() {
+            Some(0)
+        } else if url.contains("mouse") && self.texture_mouse.is_some() {
+            Some(1)
+        } else if url.contains("keyboard") && self.texture_keyboard.is_some() {
+            Some(2)
+        } else {
+            None
         }
     }
 
@@ -423,6 +574,9 @@ impl Widget for A2uiSurface {
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
+        // Load image textures if not loaded yet
+        self.load_image_textures(cx);
+
         // Clear button data from previous frame
         // Keep button_areas - they will be updated in render_button to maintain event tracking
         self.button_data.clear();
@@ -498,6 +652,9 @@ impl A2uiSurface {
             }
             ComponentType::Button(btn) => {
                 self.render_button(cx, scope, surface, data_model, btn, component_id);
+            }
+            ComponentType::Image(img) => {
+                self.render_image(cx, img, data_model);
             }
             _ => {
                 // Unsupported component - skip for now
@@ -750,6 +907,60 @@ impl A2uiSurface {
             self.draw_text.text_style.font_size = font_size;
             self.draw_text.draw_walk(cx, Walk::fit(), Align::default(), &text_value);
         }
+    }
+
+    fn render_image(&mut self, cx: &mut Cx2d, img: &ImageComponent, data_model: &DataModel) {
+        let url = resolve_string_value(&img.url, data_model);
+
+        // Determine size based on usage hint
+        let (width, height) = match img.usage_hint {
+            Some(ImageUsageHint::Icon) => (24.0, 24.0),
+            Some(ImageUsageHint::Avatar) => (48.0, 48.0),
+            Some(ImageUsageHint::SmallFeature) => (64.0, 64.0),
+            Some(ImageUsageHint::MediumFeature) => (120.0, 80.0),
+            Some(ImageUsageHint::LargeFeature) => (200.0, 150.0),
+            Some(ImageUsageHint::Header) => (300.0, 100.0),
+            _ => (80.0, 80.0), // Default size
+        };
+
+        let walk = Walk::new(Size::Fixed(width), Size::Fixed(height));
+
+        // Get texture index (avoid borrow conflict)
+        let texture_idx = self.get_texture_index_for_url(&url);
+
+        // Try to render actual image if texture is available
+        if let Some(idx) = texture_idx {
+            // Get texture reference by index
+            let texture = match idx {
+                0 => self.texture_headphones.as_ref(),
+                1 => self.texture_mouse.as_ref(),
+                2 => self.texture_keyboard.as_ref(),
+                _ => None,
+            };
+
+            if let Some(tex) = texture {
+                // Draw actual image with texture
+                self.draw_image.draw_vars.set_texture(0, tex);
+                self.draw_image.draw_walk(cx, walk);
+                return;
+            }
+        }
+
+        // Fallback to placeholder
+        let layout = Layout {
+            padding: Padding {
+                left: 4.0,
+                right: 4.0,
+                top: 4.0,
+                bottom: 4.0,
+            },
+            align: Align { x: 0.5, y: 0.5 },
+            ..Layout::default()
+        };
+
+        self.draw_image_placeholder.begin(cx, walk, layout);
+        self.draw_image_text.draw_walk(cx, Walk::fit(), Align::default(), "IMG");
+        self.draw_image_placeholder.end(cx);
     }
 
     fn render_card(
