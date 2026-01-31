@@ -215,8 +215,13 @@ impl A2uiMessageProcessor {
     /// Parse and process a JSON string containing A2UI messages
     pub fn process_json(&mut self, json: &str) -> Result<Vec<ProcessorEvent>, serde_json::Error> {
         // Try to parse as array first
-        if let Ok(messages) = serde_json::from_str::<Vec<A2uiMessage>>(json) {
-            return Ok(self.process_messages(messages));
+        match serde_json::from_str::<Vec<A2uiMessage>>(json) {
+            Ok(messages) => {
+                return Ok(self.process_messages(messages));
+            }
+            Err(e) => {
+                makepad_widgets::log!("Array parse error: {} (will try single message)", e);
+            }
         }
 
         // Try to parse as single message
@@ -235,11 +240,15 @@ impl A2uiMessageProcessor {
     }
 
     /// Create a user action from a button click
+    ///
+    /// The `scope` parameter is used for template rendering - it provides the base path
+    /// for resolving relative paths in action context (e.g., "/products/0" for the first item)
     pub fn create_action(
         &self,
         surface_id: &str,
         component_id: &str,
         action_def: &ActionDefinition,
+        scope: Option<&str>,
     ) -> UserAction {
         let mut context = HashMap::new();
 
@@ -251,28 +260,37 @@ impl A2uiMessageProcessor {
                         StringValue::Literal { literal_string } => {
                             serde_json::Value::String(literal_string.clone())
                         }
-                        StringValue::Path { path } => data_model
-                            .get(path)
-                            .cloned()
-                            .unwrap_or(serde_json::Value::Null),
+                        StringValue::Path { path } => {
+                            let resolved_path = resolve_path(path, scope);
+                            data_model
+                                .get(&resolved_path)
+                                .cloned()
+                                .unwrap_or(serde_json::Value::Null)
+                        }
                     },
                     ActionValue::Number(nv) => match nv {
                         NumberValue::Literal { literal_number } => {
                             serde_json::json!(*literal_number)
                         }
-                        NumberValue::Path { path } => data_model
-                            .get(path)
-                            .cloned()
-                            .unwrap_or(serde_json::Value::Null),
+                        NumberValue::Path { path } => {
+                            let resolved_path = resolve_path(path, scope);
+                            data_model
+                                .get(&resolved_path)
+                                .cloned()
+                                .unwrap_or(serde_json::Value::Null)
+                        }
                     },
                     ActionValue::Boolean(bv) => match bv {
                         BooleanValue::Literal { literal_boolean } => {
                             serde_json::Value::Bool(*literal_boolean)
                         }
-                        BooleanValue::Path { path } => data_model
-                            .get(path)
-                            .cloned()
-                            .unwrap_or(serde_json::Value::Null),
+                        BooleanValue::Path { path } => {
+                            let resolved_path = resolve_path(path, scope);
+                            data_model
+                                .get(&resolved_path)
+                                .cloned()
+                                .unwrap_or(serde_json::Value::Null)
+                        }
                     },
                 };
                 context.insert(item.key.clone(), value);
@@ -371,30 +389,82 @@ impl A2uiMessageProcessor {
     }
 }
 
+/// Resolve a path with optional scope prefix.
+/// - If path starts with `/`, it's absolute (use as-is)
+/// - Otherwise, it's relative (prepend scope)
+fn resolve_path(path: &str, scope: Option<&str>) -> String {
+    if path.starts_with('/') {
+        // Absolute path
+        path.to_string()
+    } else if let Some(scope_prefix) = scope {
+        // Relative path with scope
+        format!("{}/{}", scope_prefix, path)
+    } else {
+        // Relative path without scope - treat as absolute
+        format!("/{}", path)
+    }
+}
+
 /// Resolve a StringValue to an actual string using the data model
 pub fn resolve_string_value(value: &StringValue, data_model: &DataModel) -> String {
+    resolve_string_value_scoped(value, data_model, None)
+}
+
+/// Resolve a StringValue with optional scope for template rendering
+pub fn resolve_string_value_scoped(
+    value: &StringValue,
+    data_model: &DataModel,
+    scope: Option<&str>,
+) -> String {
     match value {
         StringValue::Literal { literal_string } => literal_string.clone(),
-        StringValue::Path { path } => data_model
-            .get_string(path)
-            .map(|s| s.to_string())
-            .unwrap_or_default(),
+        StringValue::Path { path } => {
+            let resolved_path = resolve_path(path, scope);
+            data_model
+                .get_string(&resolved_path)
+                .map(|s| s.to_string())
+                .unwrap_or_default()
+        }
     }
 }
 
 /// Resolve a NumberValue to an actual number using the data model
 pub fn resolve_number_value(value: &NumberValue, data_model: &DataModel) -> f64 {
+    resolve_number_value_scoped(value, data_model, None)
+}
+
+/// Resolve a NumberValue with optional scope for template rendering
+pub fn resolve_number_value_scoped(
+    value: &NumberValue,
+    data_model: &DataModel,
+    scope: Option<&str>,
+) -> f64 {
     match value {
         NumberValue::Literal { literal_number } => *literal_number,
-        NumberValue::Path { path } => data_model.get_number(path).unwrap_or(0.0),
+        NumberValue::Path { path } => {
+            let resolved_path = resolve_path(path, scope);
+            data_model.get_number(&resolved_path).unwrap_or(0.0)
+        }
     }
 }
 
 /// Resolve a BooleanValue to an actual boolean using the data model
 pub fn resolve_boolean_value(value: &BooleanValue, data_model: &DataModel) -> bool {
+    resolve_boolean_value_scoped(value, data_model, None)
+}
+
+/// Resolve a BooleanValue with optional scope for template rendering
+pub fn resolve_boolean_value_scoped(
+    value: &BooleanValue,
+    data_model: &DataModel,
+    scope: Option<&str>,
+) -> bool {
     match value {
         BooleanValue::Literal { literal_boolean } => *literal_boolean,
-        BooleanValue::Path { path } => data_model.get_bool(path).unwrap_or(false),
+        BooleanValue::Path { path } => {
+            let resolved_path = resolve_path(path, scope);
+            data_model.get_bool(&resolved_path).unwrap_or(false)
+        }
     }
 }
 

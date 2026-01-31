@@ -173,8 +173,10 @@ pub enum ChildrenRef {
     /// Template-based children (for dynamic lists)
     Template {
         /// Template component ID
+        #[serde(rename = "componentId")]
         component_id: String,
         /// Data binding path for the list data
+        #[serde(rename = "dataBinding")]
         data_binding: String,
     },
 }
@@ -626,6 +628,8 @@ pub enum DataValue {
     ValueBoolean(bool),
     /// Nested map (object)
     ValueMap(Vec<DataContent>),
+    /// Array of values
+    ValueArray(Vec<DataValue>),
 }
 
 /// Delete a surface
@@ -712,5 +716,38 @@ mod tests {
             }
             _ => panic!("Expected DataModelUpdate"),
         }
+    }
+
+    #[test]
+    fn test_parse_data_model_with_array() {
+        let json = r##"{"dataModelUpdate": {"surfaceId": "main", "path": "/", "contents": [{"key": "products", "valueArray": [{"valueMap": [{"key": "name", "valueString": "Test"}]}]}]}}"##;
+
+        let result: Result<A2uiMessage, _> = serde_json::from_str(json);
+        println!("Parse result: {:?}", result);
+
+        let msg = result.unwrap();
+        match msg {
+            A2uiMessage::DataModelUpdate(dm) => {
+                assert_eq!(dm.surface_id, "main");
+                assert_eq!(dm.contents.len(), 1);
+            }
+            _ => panic!("Expected DataModelUpdate"),
+        }
+    }
+
+    #[test]
+    fn test_parse_full_demo_json() {
+        // Test parsing the complete demo JSON as Vec<A2uiMessage>
+        let json = r##"[
+            {"beginRendering": {"surfaceId": "main", "root": "root-column"}},
+            {"surfaceUpdate": {"surfaceId": "main", "components": []}},
+            {"dataModelUpdate": {"surfaceId": "main", "path": "/", "contents": [{"key": "products", "valueArray": [{"valueMap": [{"key": "name", "valueString": "Test"}]}]}]}}
+        ]"##;
+
+        let result: Result<Vec<A2uiMessage>, _> = serde_json::from_str(json);
+        println!("Full demo parse result: {:?}", result);
+
+        let messages = result.unwrap();
+        assert_eq!(messages.len(), 3);
     }
 }

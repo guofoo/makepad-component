@@ -8,7 +8,7 @@ use makepad_widgets::*;
 use super::{
     data_model::DataModel,
     message::*,
-    processor::{resolve_string_value, A2uiMessageProcessor, ProcessorEvent},
+    processor::{resolve_string_value, resolve_string_value_scoped, A2uiMessageProcessor, ProcessorEvent},
 };
 
 // ============================================================================
@@ -388,9 +388,9 @@ pub struct A2uiSurface {
     #[rust]
     button_areas: Vec<Area>,
 
-    /// Button metadata: (component_id, Option<ActionDefinition>)
+    /// Button metadata: (component_id, Option<ActionDefinition>, Option<scope>)
     #[rust]
-    button_data: Vec<(String, Option<ActionDefinition>)>,
+    button_data: Vec<(String, Option<ActionDefinition>, Option<String>)>,
 
     /// Currently hovered button index (only one at a time)
     #[rust]
@@ -399,6 +399,11 @@ pub struct A2uiSurface {
     /// Currently pressed button index (only one at a time)
     #[rust]
     pressed_button_idx: Option<usize>,
+
+    /// Current template scope path for relative path resolution
+    /// When rendering inside a template, this is set to the item path (e.g., "/products/0")
+    #[rust]
+    current_scope: Option<String>,
 }
 
 impl A2uiSurface {
@@ -538,7 +543,7 @@ impl Widget for A2uiSurface {
 
                         // Check if released over this button (click confirmed)
                         if fe.is_over {
-                            if let Some((component_id, action_def)) = self.button_data.get(idx) {
+                            if let Some((component_id, action_def, btn_scope)) = self.button_data.get(idx) {
                                 if let Some(action_def) = action_def {
                                     // Create resolved UserAction with data model values
                                     let surface_id = self.get_surface_id();
@@ -547,6 +552,7 @@ impl Widget for A2uiSurface {
                                             &surface_id,
                                             component_id,
                                             action_def,
+                                            btn_scope.as_deref(),
                                         );
                                         // Emit widget action for app layer to handle
                                         cx.widget_action(
@@ -871,14 +877,27 @@ impl A2uiSurface {
         surface: &super::processor::Surface,
         data_model: &DataModel,
         component_id: &str,
-        _item_path: &str,
+        item_path: &str,
     ) {
-        // TODO: Set up scoped data model for template items
+        // Set up scoped data model for template items
+        // Save previous scope and set new one
+        let previous_scope = self.current_scope.take();
+        self.current_scope = Some(item_path.to_string());
+
+        // Render the component with scoped path resolution
         self.render_component(cx, scope, surface, data_model, component_id);
+
+        // Restore previous scope
+        self.current_scope = previous_scope;
     }
 
     fn render_text(&mut self, cx: &mut Cx2d, text: &TextComponent, data_model: &DataModel) {
-        let text_value = resolve_string_value(&text.text, data_model);
+        // Use scoped resolution for template rendering
+        let text_value = resolve_string_value_scoped(
+            &text.text,
+            data_model,
+            self.current_scope.as_deref(),
+        );
 
 
         // Determine font size based on usage hint
@@ -910,7 +929,12 @@ impl A2uiSurface {
     }
 
     fn render_image(&mut self, cx: &mut Cx2d, img: &ImageComponent, data_model: &DataModel) {
-        let url = resolve_string_value(&img.url, data_model);
+        // Use scoped resolution for template rendering
+        let url = resolve_string_value_scoped(
+            &img.url,
+            data_model,
+            self.current_scope.as_deref(),
+        );
 
         // Determine size based on usage hint
         let (width, height) = match img.usage_hint {
@@ -1091,10 +1115,11 @@ impl A2uiSurface {
         }
 
 
-        // Store button metadata
+        // Store button metadata including template scope for action context resolution
         self.button_data.push((
             component_id.to_string(),
             btn.action.clone(),
+            self.current_scope.clone(),
         ));
     }
 }

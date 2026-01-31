@@ -197,6 +197,9 @@ impl DataModel {
                 }
                 Value::Object(map)
             }
+            super::message::DataValue::ValueArray(items) => {
+                Value::Array(items.iter().map(|v| self.data_value_to_json(v)).collect())
+            }
         }
     }
 
