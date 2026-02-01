@@ -8,7 +8,10 @@ use makepad_widgets::*;
 use super::{
     data_model::DataModel,
     message::*,
-    processor::{resolve_string_value, resolve_string_value_scoped, A2uiMessageProcessor, ProcessorEvent},
+    processor::{
+        resolve_boolean_value_scoped, resolve_number_value_scoped,
+        resolve_string_value_scoped, A2uiMessageProcessor, ProcessorEvent,
+    },
 };
 
 // ============================================================================
@@ -21,6 +24,12 @@ pub enum A2uiSurfaceAction {
     None,
     /// User triggered an action (e.g., button click)
     UserAction(UserAction),
+    /// Data model value changed (two-way binding)
+    DataModelChanged {
+        surface_id: String,
+        path: String,
+        value: serde_json::Value,
+    },
 }
 
 live_design! {
@@ -43,6 +52,129 @@ live_design! {
             let img_color = sample2d(self.image, self.pos);
 
             sdf.fill(img_color);
+            return sdf.result;
+        }
+    }
+
+    // ============================================================================
+    // A2UI TextField - Text input component shader
+    // ============================================================================
+    DrawA2uiTextField = {{DrawA2uiTextField}} {
+        instance border_color: #5588bb
+        instance bg_color: #2a3a5a
+        instance border_radius: 6.0
+        instance border_width: 1.0
+
+        fn pixel(self) -> vec4 {
+            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+            sdf.box(
+                self.border_width,
+                self.border_width,
+                self.rect_size.x - self.border_width * 2.0,
+                self.rect_size.y - self.border_width * 2.0,
+                self.border_radius
+            );
+            sdf.fill_keep(self.bg_color);
+
+            // Highlight border on focus
+            let border = mix(self.border_color, vec4(0.231, 0.51, 0.965, 1.0), self.focus);
+            sdf.stroke(border, self.border_width);
+            return sdf.result;
+        }
+    }
+
+    // ============================================================================
+    // A2UI CheckBox - Checkbox component shader
+    // ============================================================================
+    DrawA2uiCheckBox = {{DrawA2uiCheckBox}} {
+        instance border_color: #5588bb
+        instance bg_color: #2a3a5a
+        instance check_color: #3B82F6
+        instance border_radius: 4.0
+        instance border_width: 1.5
+
+        fn pixel(self) -> vec4 {
+            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+            let size = min(self.rect_size.x, self.rect_size.y);
+
+            // Checkbox box
+            sdf.box(
+                self.border_width,
+                self.border_width,
+                size - self.border_width * 2.0,
+                size - self.border_width * 2.0,
+                self.border_radius
+            );
+
+            // Fill with check color when checked
+            let bg = mix(self.bg_color, self.check_color, self.checked);
+            sdf.fill_keep(bg);
+
+            // Border with hover effect
+            let border = mix(self.border_color, self.check_color, self.hover);
+            sdf.stroke(border, self.border_width);
+
+            // Draw checkmark when checked
+            if self.checked > 0.5 {
+                let cx = size * 0.5;
+                let cy = size * 0.5;
+                let scale = size * 0.25;
+
+                // Checkmark path (two lines)
+                sdf.move_to(cx - scale * 0.8, cy);
+                sdf.line_to(cx - scale * 0.2, cy + scale * 0.6);
+                sdf.line_to(cx + scale * 0.8, cy - scale * 0.5);
+                sdf.stroke(#FFFFFF, 2.0);
+            }
+
+            return sdf.result;
+        }
+    }
+
+    // ============================================================================
+    // A2UI Slider - Slider component shaders
+    // ============================================================================
+    DrawA2uiSliderTrack = {{DrawA2uiSliderTrack}} {
+        instance track_color: #3a4a6a
+        instance fill_color: #3B82F6
+        instance border_radius: 3.0
+
+        fn pixel(self) -> vec4 {
+            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+
+            // Track background
+            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
+            sdf.fill(self.track_color);
+
+            // Progress fill
+            let fill_width = self.rect_size.x * self.progress;
+            if fill_width > 0.0 {
+                sdf.box(0.0, 0.0, fill_width, self.rect_size.y, self.border_radius);
+                sdf.fill(self.fill_color);
+            }
+
+            return sdf.result;
+        }
+    }
+
+    DrawA2uiSliderThumb = {{DrawA2uiSliderThumb}} {
+        instance thumb_color: #FFFFFF
+        instance shadow_color: #00000040
+
+        fn pixel(self) -> vec4 {
+            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+            let radius = min(self.rect_size.x, self.rect_size.y) * 0.5;
+            let center = self.rect_size * 0.5;
+
+            // Shadow
+            sdf.circle(center.x, center.y + 1.0, radius - 1.0);
+            sdf.fill(self.shadow_color);
+
+            // Thumb circle
+            let thumb_scale = 1.0 + self.hover * 0.1 - self.pressed * 0.05;
+            sdf.circle(center.x, center.y, (radius - 2.0) * thumb_scale);
+            sdf.fill(self.thumb_color);
+
             return sdf.result;
         }
     }
@@ -155,6 +287,54 @@ live_design! {
 
         // Actual image drawing
         draw_image: <DrawA2uiImage> {}
+
+        // TextField background
+        draw_text_field: <DrawA2uiTextField> {
+            border_color: #5588bb
+            bg_color: #2a3a5a
+        }
+
+        // TextField input text
+        draw_text_field_text: {
+            text_style: <THEME_FONT_REGULAR> {
+                font_size: 14.0
+            }
+            color: #FFFFFF
+        }
+
+        // TextField placeholder text
+        draw_text_field_placeholder: {
+            text_style: <THEME_FONT_REGULAR> {
+                font_size: 14.0
+            }
+            color: #888888
+        }
+
+        // Checkbox drawing
+        draw_checkbox: <DrawA2uiCheckBox> {
+            border_color: #5588bb
+            bg_color: #2a3a5a
+            check_color: #3B82F6
+        }
+
+        // Checkbox label text
+        draw_checkbox_label: {
+            text_style: <THEME_FONT_REGULAR> {
+                font_size: 14.0
+            }
+            color: #FFFFFF
+        }
+
+        // Slider track
+        draw_slider_track: <DrawA2uiSliderTrack> {
+            track_color: #3a4a6a
+            fill_color: #3B82F6
+        }
+
+        // Slider thumb
+        draw_slider_thumb: <DrawA2uiSliderThumb> {
+            thumb_color: #FFFFFF
+        }
 
         // Image resources
         img_headphones: dep("crate://self/resources/headphones.jpg")
@@ -297,6 +477,62 @@ pub struct DrawA2uiImage {
 }
 
 // ============================================================================
+// DrawA2uiTextField - for rendering text field backgrounds
+// ============================================================================
+
+#[derive(Live, LiveHook, LiveRegister)]
+#[repr(C)]
+pub struct DrawA2uiTextField {
+    #[deref]
+    draw_super: DrawQuad,
+    #[live(0.0)]
+    pub focus: f32,
+}
+
+// ============================================================================
+// DrawA2uiCheckBox - for rendering checkbox with checkmark
+// ============================================================================
+
+#[derive(Live, LiveHook, LiveRegister)]
+#[repr(C)]
+pub struct DrawA2uiCheckBox {
+    #[deref]
+    draw_super: DrawQuad,
+    #[live(0.0)]
+    pub checked: f32,
+    #[live(0.0)]
+    pub hover: f32,
+}
+
+// ============================================================================
+// DrawA2uiSliderTrack - for rendering slider track
+// ============================================================================
+
+#[derive(Live, LiveHook, LiveRegister)]
+#[repr(C)]
+pub struct DrawA2uiSliderTrack {
+    #[deref]
+    draw_super: DrawQuad,
+    #[live(0.0)]
+    pub progress: f32,
+}
+
+// ============================================================================
+// DrawA2uiSliderThumb - for rendering slider thumb
+// ============================================================================
+
+#[derive(Live, LiveHook, LiveRegister)]
+#[repr(C)]
+pub struct DrawA2uiSliderThumb {
+    #[deref]
+    draw_super: DrawQuad,
+    #[live(0.0)]
+    pub hover: f32,
+    #[live(0.0)]
+    pub pressed: f32,
+}
+
+// ============================================================================
 // A2UI Surface Widget
 // ============================================================================
 
@@ -348,6 +584,38 @@ pub struct A2uiSurface {
     #[redraw]
     #[live]
     draw_image: DrawA2uiImage,
+
+    /// Draw text field background
+    #[redraw]
+    #[live]
+    draw_text_field: DrawA2uiTextField,
+
+    /// Draw text for text field input
+    #[live]
+    draw_text_field_text: DrawText,
+
+    /// Draw text for text field placeholder
+    #[live]
+    draw_text_field_placeholder: DrawText,
+
+    /// Draw checkbox
+    #[redraw]
+    #[live]
+    draw_checkbox: DrawA2uiCheckBox,
+
+    /// Draw checkbox label
+    #[live]
+    draw_checkbox_label: DrawText,
+
+    /// Draw slider track
+    #[redraw]
+    #[live]
+    draw_slider_track: DrawA2uiSliderTrack,
+
+    /// Draw slider thumb
+    #[redraw]
+    #[live]
+    draw_slider_thumb: DrawA2uiSliderThumb,
 
     /// Image sources (preloaded)
     #[live]
@@ -404,6 +672,66 @@ pub struct A2uiSurface {
     /// When rendering inside a template, this is set to the item path (e.g., "/products/0")
     #[rust]
     current_scope: Option<String>,
+
+    // ============================================================================
+    // TextField state tracking
+    // ============================================================================
+
+    /// TextField areas for event detection
+    #[rust]
+    text_field_areas: Vec<Area>,
+
+    /// TextField metadata: (component_id, binding_path, current_value)
+    #[rust]
+    text_field_data: Vec<(String, Option<String>, String)>,
+
+    /// Currently focused text field index
+    #[rust]
+    focused_text_field_idx: Option<usize>,
+
+    /// Text input buffer for focused field
+    #[rust]
+    text_input_buffer: String,
+
+    /// Cursor position in text input
+    #[rust]
+    cursor_pos: usize,
+
+    // ============================================================================
+    // CheckBox state tracking
+    // ============================================================================
+
+    /// CheckBox areas for event detection
+    #[rust]
+    checkbox_areas: Vec<Area>,
+
+    /// CheckBox metadata: (component_id, binding_path, current_value)
+    #[rust]
+    checkbox_data: Vec<(String, Option<String>, bool)>,
+
+    /// Currently hovered checkbox index
+    #[rust]
+    hovered_checkbox_idx: Option<usize>,
+
+    // ============================================================================
+    // Slider state tracking
+    // ============================================================================
+
+    /// Slider areas for event detection
+    #[rust]
+    slider_areas: Vec<Area>,
+
+    /// Slider metadata: (component_id, binding_path, min, max, current_value)
+    #[rust]
+    slider_data: Vec<(String, Option<String>, f64, f64, f64)>,
+
+    /// Currently dragging slider index
+    #[rust]
+    dragging_slider_idx: Option<usize>,
+
+    /// Currently hovered slider index
+    #[rust]
+    hovered_slider_idx: Option<usize>,
 }
 
 impl A2uiSurface {
@@ -507,14 +835,99 @@ impl A2uiSurface {
 
 impl Widget for A2uiSurface {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event, scope: &mut Scope) {
-        // Skip if no buttons registered
-        if self.button_areas.is_empty() {
-            return;
+        let mut needs_redraw = false;
+        let surface_id = self.get_surface_id();
+
+        // Handle text input events for focused text field
+        if let Some(focused_idx) = self.focused_text_field_idx {
+            if let Event::TextInput(te) = event {
+                // Insert text at cursor position
+                self.text_input_buffer.insert_str(self.cursor_pos, &te.input);
+                self.cursor_pos += te.input.len();
+                needs_redraw = true;
+
+                // Emit data model change
+                if let Some((_, binding_path, _)) = self.text_field_data.get(focused_idx) {
+                    if let Some(path) = binding_path {
+                        cx.widget_action(
+                            self.widget_uid(),
+                            &scope.path,
+                            A2uiSurfaceAction::DataModelChanged {
+                                surface_id: surface_id.clone(),
+                                path: path.clone(),
+                                value: serde_json::Value::String(self.text_input_buffer.clone()),
+                            },
+                        );
+                    }
+                }
+            }
+
+            if let Event::KeyDown(ke) = event {
+                match ke.key_code {
+                    KeyCode::Backspace => {
+                        if self.cursor_pos > 0 {
+                            self.cursor_pos -= 1;
+                            self.text_input_buffer.remove(self.cursor_pos);
+                            needs_redraw = true;
+
+                            // Emit data model change
+                            if let Some((_, binding_path, _)) = self.text_field_data.get(focused_idx) {
+                                if let Some(path) = binding_path {
+                                    cx.widget_action(
+                                        self.widget_uid(),
+                                        &scope.path,
+                                        A2uiSurfaceAction::DataModelChanged {
+                                            surface_id: surface_id.clone(),
+                                            path: path.clone(),
+                                            value: serde_json::Value::String(self.text_input_buffer.clone()),
+                                        },
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::Delete => {
+                        if self.cursor_pos < self.text_input_buffer.len() {
+                            self.text_input_buffer.remove(self.cursor_pos);
+                            needs_redraw = true;
+
+                            if let Some((_, binding_path, _)) = self.text_field_data.get(focused_idx) {
+                                if let Some(path) = binding_path {
+                                    cx.widget_action(
+                                        self.widget_uid(),
+                                        &scope.path,
+                                        A2uiSurfaceAction::DataModelChanged {
+                                            surface_id: surface_id.clone(),
+                                            path: path.clone(),
+                                            value: serde_json::Value::String(self.text_input_buffer.clone()),
+                                        },
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::ArrowLeft => {
+                        if self.cursor_pos > 0 {
+                            self.cursor_pos -= 1;
+                            needs_redraw = true;
+                        }
+                    }
+                    KeyCode::ArrowRight => {
+                        if self.cursor_pos < self.text_input_buffer.len() {
+                            self.cursor_pos += 1;
+                            needs_redraw = true;
+                        }
+                    }
+                    KeyCode::Escape => {
+                        self.focused_text_field_idx = None;
+                        needs_redraw = true;
+                    }
+                    _ => {}
+                }
+            }
         }
 
-        let mut needs_redraw = false;
-
-        // Use Makepad's standard event.hits() pattern for each button's Area
+        // Handle button events
         for (idx, area) in self.button_areas.iter().enumerate() {
             match event.hits(cx, *area) {
                 Hit::FingerHoverIn(_) => {
@@ -543,10 +956,11 @@ impl Widget for A2uiSurface {
 
                         // Check if released over this button (click confirmed)
                         if fe.is_over {
-                            if let Some((component_id, action_def, btn_scope)) = self.button_data.get(idx) {
+                            if let Some((component_id, action_def, btn_scope)) =
+                                self.button_data.get(idx)
+                            {
                                 if let Some(action_def) = action_def {
                                     // Create resolved UserAction with data model values
-                                    let surface_id = self.get_surface_id();
                                     if let Some(processor) = &self.processor {
                                         let user_action = processor.create_action(
                                             &surface_id,
@@ -574,6 +988,143 @@ impl Widget for A2uiSurface {
             }
         }
 
+        // Handle text field events
+        for (idx, area) in self.text_field_areas.iter().enumerate() {
+            match event.hits(cx, *area) {
+                Hit::FingerDown(_) => {
+                    // Focus this text field
+                    self.focused_text_field_idx = Some(idx);
+                    if let Some((_, _, current_value)) = self.text_field_data.get(idx) {
+                        self.text_input_buffer = current_value.clone();
+                        self.cursor_pos = self.text_input_buffer.len();
+                    }
+                    cx.set_key_focus(self.area);
+                    needs_redraw = true;
+                }
+                _ => {}
+            }
+        }
+
+        // Handle checkbox events
+        for (idx, area) in self.checkbox_areas.iter().enumerate() {
+            match event.hits(cx, *area) {
+                Hit::FingerHoverIn(_) => {
+                    if self.hovered_checkbox_idx != Some(idx) {
+                        self.hovered_checkbox_idx = Some(idx);
+                        cx.set_cursor(MouseCursor::Hand);
+                        needs_redraw = true;
+                    }
+                }
+                Hit::FingerHoverOut(_) => {
+                    if self.hovered_checkbox_idx == Some(idx) {
+                        self.hovered_checkbox_idx = None;
+                        cx.set_cursor(MouseCursor::Default);
+                        needs_redraw = true;
+                    }
+                }
+                Hit::FingerUp(fe) => {
+                    if fe.is_over {
+                        // Toggle checkbox value
+                        if let Some((_, binding_path, current_value)) =
+                            self.checkbox_data.get(idx).cloned()
+                        {
+                            let new_value = !current_value;
+                            if let Some(path) = binding_path {
+                                cx.widget_action(
+                                    self.widget_uid(),
+                                    &scope.path,
+                                    A2uiSurfaceAction::DataModelChanged {
+                                        surface_id: surface_id.clone(),
+                                        path,
+                                        value: serde_json::Value::Bool(new_value),
+                                    },
+                                );
+                            }
+                        }
+                        needs_redraw = true;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Handle slider events
+        for (idx, area) in self.slider_areas.iter().enumerate() {
+            match event.hits(cx, *area) {
+                Hit::FingerHoverIn(_) => {
+                    if self.hovered_slider_idx != Some(idx) {
+                        self.hovered_slider_idx = Some(idx);
+                        cx.set_cursor(MouseCursor::Hand);
+                        needs_redraw = true;
+                    }
+                }
+                Hit::FingerHoverOut(_) => {
+                    if self.hovered_slider_idx == Some(idx) && self.dragging_slider_idx != Some(idx)
+                    {
+                        self.hovered_slider_idx = None;
+                        cx.set_cursor(MouseCursor::Default);
+                        needs_redraw = true;
+                    }
+                }
+                Hit::FingerDown(fe) => {
+                    self.dragging_slider_idx = Some(idx);
+                    self.hovered_slider_idx = Some(idx);
+
+                    // Calculate value from position
+                    if let Some((_, binding_path, min, max, _)) = self.slider_data.get(idx).cloned()
+                    {
+                        let rect = area.rect(cx);
+                        let rel_x = (fe.abs.x - rect.pos.x) / rect.size.x;
+                        let new_value = min + (max - min) * rel_x.clamp(0.0, 1.0);
+
+                        if let Some(path) = binding_path {
+                            cx.widget_action(
+                                self.widget_uid(),
+                                &scope.path,
+                                A2uiSurfaceAction::DataModelChanged {
+                                    surface_id: surface_id.clone(),
+                                    path,
+                                    value: serde_json::json!(new_value),
+                                },
+                            );
+                        }
+                    }
+                    needs_redraw = true;
+                }
+                Hit::FingerMove(fe) => {
+                    if self.dragging_slider_idx == Some(idx) {
+                        if let Some((_, binding_path, min, max, _)) =
+                            self.slider_data.get(idx).cloned()
+                        {
+                            let rect = area.rect(cx);
+                            let rel_x = (fe.abs.x - rect.pos.x) / rect.size.x;
+                            let new_value = min + (max - min) * rel_x.clamp(0.0, 1.0);
+
+                            if let Some(path) = binding_path {
+                                cx.widget_action(
+                                    self.widget_uid(),
+                                    &scope.path,
+                                    A2uiSurfaceAction::DataModelChanged {
+                                        surface_id: surface_id.clone(),
+                                        path,
+                                        value: serde_json::json!(new_value),
+                                    },
+                                );
+                            }
+                        }
+                        needs_redraw = true;
+                    }
+                }
+                Hit::FingerUp(_) => {
+                    if self.dragging_slider_idx == Some(idx) {
+                        self.dragging_slider_idx = None;
+                        needs_redraw = true;
+                    }
+                }
+                _ => {}
+            }
+        }
+
         if needs_redraw {
             self.redraw(cx);
         }
@@ -583,9 +1134,12 @@ impl Widget for A2uiSurface {
         // Load image textures if not loaded yet
         self.load_image_textures(cx);
 
-        // Clear button data from previous frame
-        // Keep button_areas - they will be updated in render_button to maintain event tracking
+        // Clear component data from previous frame
+        // Keep areas - they will be updated in render_* to maintain event tracking
         self.button_data.clear();
+        self.text_field_data.clear();
+        self.checkbox_data.clear();
+        self.slider_data.clear();
 
         self.draw_bg.begin(cx, walk, self.layout);
 
@@ -613,10 +1167,25 @@ impl Widget for A2uiSurface {
             }
         }
 
-        // Trim button_areas if we have fewer buttons this frame
+        // Trim areas if we have fewer components this frame
         let current_button_count = self.button_data.len();
         if current_button_count < self.button_areas.len() {
             self.button_areas.truncate(current_button_count);
+        }
+
+        let current_text_field_count = self.text_field_data.len();
+        if current_text_field_count < self.text_field_areas.len() {
+            self.text_field_areas.truncate(current_text_field_count);
+        }
+
+        let current_checkbox_count = self.checkbox_data.len();
+        if current_checkbox_count < self.checkbox_areas.len() {
+            self.checkbox_areas.truncate(current_checkbox_count);
+        }
+
+        let current_slider_count = self.slider_data.len();
+        if current_slider_count < self.slider_areas.len() {
+            self.slider_areas.truncate(current_slider_count);
         }
 
         self.draw_bg.end(cx);
@@ -661,6 +1230,18 @@ impl A2uiSurface {
             }
             ComponentType::Image(img) => {
                 self.render_image(cx, img, data_model);
+            }
+            ComponentType::TextField(text_field) => {
+                self.render_text_field(cx, text_field, data_model, component_id);
+            }
+            ComponentType::CheckBox(checkbox) => {
+                self.render_checkbox(cx, checkbox, data_model, component_id);
+            }
+            ComponentType::Slider(slider) => {
+                self.render_slider(cx, slider, data_model, component_id);
+            }
+            ComponentType::List(list) => {
+                self.render_list(cx, scope, surface, data_model, list);
             }
             _ => {
                 // Unsupported component - skip for now
@@ -1121,6 +1702,342 @@ impl A2uiSurface {
             btn.action.clone(),
             self.current_scope.clone(),
         ));
+    }
+
+    // ============================================================================
+    // TextField Rendering
+    // ============================================================================
+
+    fn render_text_field(
+        &mut self,
+        cx: &mut Cx2d,
+        text_field: &TextFieldComponent,
+        data_model: &DataModel,
+        component_id: &str,
+    ) {
+        let text_field_idx = self.text_field_data.len();
+        let is_focused = self.focused_text_field_idx == Some(text_field_idx);
+
+        // Get current value - use input buffer if focused, otherwise from data model
+        let current_value = if is_focused {
+            self.text_input_buffer.clone()
+        } else {
+            resolve_string_value_scoped(&text_field.text, data_model, self.current_scope.as_deref())
+        };
+
+        // Get placeholder text
+        let placeholder = text_field
+            .placeholder
+            .as_ref()
+            .map(|p| resolve_string_value_scoped(p, data_model, self.current_scope.as_deref()))
+            .unwrap_or_default();
+
+        // Get binding path for two-way binding
+        let binding_path = text_field.text.as_path().map(|p| {
+            if let Some(scope) = &self.current_scope {
+                format!("{}/{}", scope, p.trim_start_matches('/'))
+            } else {
+                p.to_string()
+            }
+        });
+
+        // Layout
+        let walk = Walk {
+            width: Size::Fixed(200.0),
+            height: Size::Fixed(36.0),
+            ..Walk::default()
+        };
+        let layout = Layout {
+            padding: Padding {
+                left: 12.0,
+                right: 12.0,
+                top: 8.0,
+                bottom: 8.0,
+            },
+            align: Align { x: 0.0, y: 0.5 },
+            ..Layout::default()
+        };
+
+        // Record start position
+        let start_pos = cx.turtle().pos();
+
+        // Set focus state
+        self.draw_text_field.focus = if is_focused { 1.0 } else { 0.0 };
+
+        // Draw background
+        self.draw_text_field.begin(cx, walk, layout);
+
+        // Draw text or placeholder
+        if current_value.is_empty() && !is_focused {
+            self.draw_text_field_placeholder
+                .draw_walk(cx, Walk::fit(), Align::default(), &placeholder);
+        } else {
+            // Draw text with cursor if focused
+            if is_focused {
+                // Draw text before cursor
+                let (before, after) = current_value.split_at(self.cursor_pos.min(current_value.len()));
+                self.draw_text_field_text
+                    .draw_walk(cx, Walk::fit(), Align::default(), before);
+                // Draw cursor (simple vertical line approximation using |)
+                self.draw_text_field_text
+                    .draw_walk(cx, Walk::fit(), Align::default(), "|");
+                self.draw_text_field_text
+                    .draw_walk(cx, Walk::fit(), Align::default(), after);
+            } else {
+                self.draw_text_field_text
+                    .draw_walk(cx, Walk::fit(), Align::default(), &current_value);
+            }
+        }
+
+        self.draw_text_field.end(cx);
+
+        // Calculate rect for hit testing (using fixed size)
+        let rect = Rect {
+            pos: start_pos,
+            size: dvec2(200.0, 36.0),
+        };
+
+        // Update or create area
+        if text_field_idx < self.text_field_areas.len() {
+            cx.add_rect_area(&mut self.text_field_areas[text_field_idx], rect);
+        } else {
+            let mut area = Area::Empty;
+            cx.add_rect_area(&mut area, rect);
+            self.text_field_areas.push(area);
+        }
+
+        // Store metadata
+        self.text_field_data.push((
+            component_id.to_string(),
+            binding_path,
+            current_value,
+        ));
+    }
+
+    // ============================================================================
+    // CheckBox Rendering
+    // ============================================================================
+
+    fn render_checkbox(
+        &mut self,
+        cx: &mut Cx2d,
+        checkbox: &CheckBoxComponent,
+        data_model: &DataModel,
+        component_id: &str,
+    ) {
+        let checkbox_idx = self.checkbox_data.len();
+        let is_hovered = self.hovered_checkbox_idx == Some(checkbox_idx);
+
+        // Get current checked state
+        let is_checked =
+            resolve_boolean_value_scoped(&checkbox.value, data_model, self.current_scope.as_deref());
+
+        // Get label text
+        let label = checkbox
+            .label
+            .as_ref()
+            .map(|l| resolve_string_value_scoped(l, data_model, self.current_scope.as_deref()))
+            .unwrap_or_default();
+
+        // Get binding path
+        let binding_path = checkbox.value.as_path().map(|p| {
+            if let Some(scope) = &self.current_scope {
+                format!("{}/{}", scope, p.trim_start_matches('/'))
+            } else {
+                p.to_string()
+            }
+        });
+
+        // Record start position
+        let start_pos = cx.turtle().pos();
+
+        // Draw checkbox row
+        let row_walk = Walk::fit();
+        let row_layout = Layout {
+            flow: Flow::right(),
+            spacing: 8.0,
+            align: Align { x: 0.0, y: 0.5 },
+            ..Layout::default()
+        };
+
+        cx.begin_turtle(row_walk, row_layout);
+
+        // Draw checkbox box
+        let checkbox_walk = Walk {
+            width: Size::Fixed(20.0),
+            height: Size::Fixed(20.0),
+            ..Walk::default()
+        };
+
+        self.draw_checkbox.checked = if is_checked { 1.0 } else { 0.0 };
+        self.draw_checkbox.hover = if is_hovered { 1.0 } else { 0.0 };
+        self.draw_checkbox.draw_walk(cx, checkbox_walk);
+
+        // Draw label
+        if !label.is_empty() {
+            if self.inside_card {
+                self.draw_card_text
+                    .draw_walk(cx, Walk::fit(), Align::default(), &label);
+            } else {
+                self.draw_checkbox_label
+                    .draw_walk(cx, Walk::fit(), Align::default(), &label);
+            }
+        }
+
+        cx.end_turtle();
+
+        // Calculate rect for hit testing
+        let end_pos = cx.turtle().pos();
+        let rect = Rect {
+            pos: start_pos,
+            size: dvec2(end_pos.x - start_pos.x, 20.0),
+        };
+
+        // Update or create area
+        if checkbox_idx < self.checkbox_areas.len() {
+            cx.add_rect_area(&mut self.checkbox_areas[checkbox_idx], rect);
+        } else {
+            let mut area = Area::Empty;
+            cx.add_rect_area(&mut area, rect);
+            self.checkbox_areas.push(area);
+        }
+
+        // Store metadata
+        self.checkbox_data
+            .push((component_id.to_string(), binding_path, is_checked));
+    }
+
+    // ============================================================================
+    // Slider Rendering
+    // ============================================================================
+
+    fn render_slider(
+        &mut self,
+        cx: &mut Cx2d,
+        slider: &SliderComponent,
+        data_model: &DataModel,
+        component_id: &str,
+    ) {
+        let slider_idx = self.slider_data.len();
+        let _is_hovered = self.hovered_slider_idx == Some(slider_idx);
+        let _is_dragging = self.dragging_slider_idx == Some(slider_idx);
+
+        // Get values
+        let current_value =
+            resolve_number_value_scoped(&slider.value, data_model, self.current_scope.as_deref());
+        let min = slider.min.unwrap_or(0.0);
+        let max = slider.max.unwrap_or(100.0);
+
+        // Calculate progress (0.0 to 1.0)
+        let progress = if max > min {
+            ((current_value - min) / (max - min)).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+
+        // Get binding path
+        let binding_path = slider.value.as_path().map(|p| {
+            if let Some(scope) = &self.current_scope {
+                format!("{}/{}", scope, p.trim_start_matches('/'))
+            } else {
+                p.to_string()
+            }
+        });
+
+        // Record start position
+        let start_pos = cx.turtle().pos();
+
+        // Slider dimensions
+        let slider_width = 200.0;
+        let track_height = 6.0;
+        let thumb_size = 18.0;
+
+        // Draw slider container
+        let container_walk = Walk {
+            width: Size::Fixed(slider_width),
+            height: Size::Fixed(thumb_size),
+            ..Walk::default()
+        };
+        let container_layout = Layout {
+            align: Align { x: 0.0, y: 0.5 },
+            ..Layout::default()
+        };
+
+        cx.begin_turtle(container_walk, container_layout);
+
+        // Draw track
+        let track_walk = Walk {
+            width: Size::Fixed(slider_width),
+            height: Size::Fixed(track_height),
+            margin: Margin {
+                top: (thumb_size - track_height) / 2.0,
+                ..Margin::default()
+            },
+            ..Walk::default()
+        };
+
+        self.draw_slider_track.progress = progress as f32;
+        self.draw_slider_track.draw_walk(cx, track_walk);
+
+        cx.end_turtle();
+
+        // Draw thumb (overlay at correct position)
+        // Note: For proper overlay we'd need absolute positioning
+        // For now, we'll use a simpler approach
+
+        // Calculate rect for hit testing (the entire slider area)
+        let rect = Rect {
+            pos: start_pos,
+            size: dvec2(slider_width, thumb_size),
+        };
+
+        // Update or create area
+        if slider_idx < self.slider_areas.len() {
+            cx.add_rect_area(&mut self.slider_areas[slider_idx], rect);
+        } else {
+            let mut area = Area::Empty;
+            cx.add_rect_area(&mut area, rect);
+            self.slider_areas.push(area);
+        }
+
+        // Store metadata
+        self.slider_data.push((
+            component_id.to_string(),
+            binding_path,
+            min,
+            max,
+            current_value,
+        ));
+    }
+
+    // ============================================================================
+    // List Rendering
+    // ============================================================================
+
+    fn render_list(
+        &mut self,
+        cx: &mut Cx2d,
+        scope: &mut Scope,
+        surface: &super::processor::Surface,
+        data_model: &DataModel,
+        list: &ListComponent,
+    ) {
+        // For now, render List similar to Column
+        // TODO: Implement PortalList for virtualized scrolling
+        let walk = Walk::fill_fit();
+        let layout = Layout {
+            flow: Flow::Down,
+            spacing: 8.0,
+            ..Layout::default()
+        };
+
+        cx.begin_turtle(walk, layout);
+
+        // Render children (supports template binding)
+        let children = list.children.clone();
+        self.render_children(cx, scope, surface, data_model, &children);
+
+        cx.end_turtle();
     }
 }
 

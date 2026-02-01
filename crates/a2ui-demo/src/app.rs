@@ -115,18 +115,47 @@ impl App {
             self.load_a2ui_data(cx);
         }
 
-        // Handle A2UI user actions (e.g., "Add to Cart" button clicks)
-        let surface = self.ui.a2ui_surface(ids!(a2ui_surface));
-        if let Some(user_action) = surface.user_action(&actions) {
-            // Handle "addToCart" action
-            if user_action.action.name == "addToCart" {
-                if let Some(product_id) = user_action.action.context.get("productId") {
+        // Handle A2UI surface actions
+        let surface_ref = self.ui.widget(ids!(a2ui_surface));
+        if let Some(item) = actions.find_widget_action(surface_ref.widget_uid()) {
+            match item.cast::<A2uiSurfaceAction>() {
+                A2uiSurfaceAction::UserAction(user_action) => {
+                    // Handle "addToCart" action
+                    if user_action.action.name == "addToCart" {
+                        if let Some(product_id) = user_action.action.context.get("productId") {
+                            self.ui.label(ids!(status_label)).set_text(
+                                cx,
+                                &format!("🛒 Added product {} to cart!", product_id),
+                            );
+                            self.ui.redraw(cx);
+                        }
+                    }
+                }
+                A2uiSurfaceAction::DataModelChanged { surface_id, path, value } => {
+                    // Update the data model with the new value
+                    if let Some(mut surface) = surface_ref.borrow_mut::<A2uiSurface>() {
+                        if let Some(processor) = surface.processor_mut() {
+                            if let Some(data_model) = processor.get_data_model_mut(&surface_id) {
+                                data_model.set(&path, value.clone());
+
+                                // Computed value: when maxPrice changes, update maxPriceDisplay
+                                if path == "/filters/maxPrice" {
+                                    if let Some(price) = value.as_f64() {
+                                        let display = format!("${:.0}", price);
+                                        data_model.set("/filters/maxPriceDisplay", serde_json::Value::String(display));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Update status to show the change
                     self.ui.label(ids!(status_label)).set_text(
                         cx,
-                        &format!("🛒 Added product {} to cart!", product_id),
+                        &format!("📝 Updated {}: {}", path, value),
                     );
                     self.ui.redraw(cx);
                 }
+                _ => {}
             }
         }
     }
@@ -193,7 +222,7 @@ impl AppMain for App {
     }
 }
 
-/// Get sample A2UI JSON for a product catalog
+/// Get sample A2UI JSON for a product catalog with form inputs
 fn get_sample_product_catalog() -> String {
     r##"[
         {
@@ -211,7 +240,7 @@ fn get_sample_product_catalog() -> String {
                         "component": {
                             "Column": {
                                 "children": {
-                                    "explicitList": ["header", "product-list"]
+                                    "explicitList": ["header", "filters-section", "product-list"]
                                 }
                             }
                         }
@@ -222,6 +251,125 @@ fn get_sample_product_catalog() -> String {
                             "Text": {
                                 "text": {"literalString": "Products"},
                                 "usageHint": "h1"
+                            }
+                        }
+                    },
+                    {
+                        "id": "filters-section",
+                        "component": {
+                            "Card": {
+                                "child": "filters-content"
+                            }
+                        }
+                    },
+                    {
+                        "id": "filters-content",
+                        "component": {
+                            "Column": {
+                                "children": {
+                                    "explicitList": ["filters-title", "search-row", "options-row", "price-row"]
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "id": "filters-title",
+                        "component": {
+                            "Text": {
+                                "text": {"literalString": "Filters"},
+                                "usageHint": "h3"
+                            }
+                        }
+                    },
+                    {
+                        "id": "search-row",
+                        "component": {
+                            "Row": {
+                                "children": {
+                                    "explicitList": ["search-label", "search-input"]
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "id": "search-label",
+                        "component": {
+                            "Text": {
+                                "text": {"literalString": "Search:"}
+                            }
+                        }
+                    },
+                    {
+                        "id": "search-input",
+                        "component": {
+                            "TextField": {
+                                "text": {"path": "/filters/search"},
+                                "placeholder": {"literalString": "Enter product name..."}
+                            }
+                        }
+                    },
+                    {
+                        "id": "options-row",
+                        "component": {
+                            "Row": {
+                                "children": {
+                                    "explicitList": ["in-stock-checkbox", "on-sale-checkbox"]
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "id": "in-stock-checkbox",
+                        "component": {
+                            "CheckBox": {
+                                "value": {"path": "/filters/inStock"},
+                                "label": {"literalString": "In Stock Only"}
+                            }
+                        }
+                    },
+                    {
+                        "id": "on-sale-checkbox",
+                        "component": {
+                            "CheckBox": {
+                                "value": {"path": "/filters/onSale"},
+                                "label": {"literalString": "On Sale"}
+                            }
+                        }
+                    },
+                    {
+                        "id": "price-row",
+                        "component": {
+                            "Row": {
+                                "children": {
+                                    "explicitList": ["price-label", "price-slider", "price-value"]
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "id": "price-label",
+                        "component": {
+                            "Text": {
+                                "text": {"literalString": "Max Price:"}
+                            }
+                        }
+                    },
+                    {
+                        "id": "price-slider",
+                        "component": {
+                            "Slider": {
+                                "value": {"path": "/filters/maxPrice"},
+                                "min": 0,
+                                "max": 200,
+                                "step": 10
+                            }
+                        }
+                    },
+                    {
+                        "id": "price-value",
+                        "component": {
+                            "Text": {
+                                "text": {"path": "/filters/maxPriceDisplay"}
                             }
                         }
                     },
@@ -465,6 +613,24 @@ fn get_sample_product_catalog() -> String {
                                 "text": {"literalString": "Add to Cart"}
                             }
                         }
+                    }
+                ]
+            }
+        },
+        {
+            "dataModelUpdate": {
+                "surfaceId": "main",
+                "path": "/",
+                "contents": [
+                    {
+                        "key": "filters",
+                        "valueMap": [
+                            {"key": "search", "valueString": ""},
+                            {"key": "inStock", "valueBoolean": true},
+                            {"key": "onSale", "valueBoolean": false},
+                            {"key": "maxPrice", "valueNumber": 150},
+                            {"key": "maxPriceDisplay", "valueString": "$150"}
+                        ]
                     }
                 ]
             }
