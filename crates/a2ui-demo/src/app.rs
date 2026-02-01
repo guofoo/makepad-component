@@ -90,10 +90,13 @@ live_design! {
                         }
                     }
 
-                    // Status label
+                    // Status label - green color for visibility
                     status_label = <Label> {
                         text: "Click a button to load A2UI data or connect to server"
-                        draw_text: { color: #888888 }
+                        draw_text: {
+                            color: #4CAF50
+                            text_style: { font_size: 16.0 }
+                        }
                     }
 
                     // A2UI Surface container
@@ -277,7 +280,7 @@ impl App {
         for event in events {
             match event {
                 A2uiHostEvent::Connected => {
-                    self.ui.label(ids!(status_label)).set_text(cx, "✅ Connected! Receiving UI...");
+                    self.ui.label(ids!(status_label)).set_text(cx, "🔵 Connected! Receiving UI...");
                 }
                 A2uiHostEvent::Message(msg) => {
                     log!("Received A2uiMessage: {:?}", msg);
@@ -290,19 +293,16 @@ impl App {
                     } else {
                         log!("ERROR: Could not borrow A2uiSurface!");
                     }
-                    self.ui.label(ids!(status_label)).set_text(cx, "📥 Receiving UI updates...");
+                    self.ui.label(ids!(status_label)).set_text(cx, "🔵 Receiving UI updates...");
                 }
                 A2uiHostEvent::TaskStatus { task_id, state } => {
-                    self.ui.label(ids!(status_label)).set_text(
-                        cx,
-                        &format!("📋 Task {}: {}", task_id, state),
-                    );
+                    self.ui.label(ids!(status_label)).set_text(cx, &format!("🟣 Task {}: {}", task_id, state));
                 }
                 A2uiHostEvent::Error(e) => {
-                    self.ui.label(ids!(status_label)).set_text(cx, &format!("❌ Error: {}", e));
+                    self.ui.label(ids!(status_label)).set_text(cx, &format!("🔴 Error: {}", e));
                 }
                 A2uiHostEvent::Disconnected => {
-                    self.ui.label(ids!(status_label)).set_text(cx, "🔌 Server disconnected");
+                    self.ui.label(ids!(status_label)).set_text(cx, "⚫ Server disconnected");
                     self.host = None;
                     self.is_streaming = false;
                 }
@@ -350,14 +350,14 @@ impl App {
             }
         };
 
-        // Update status label
+        // Update status label - use emoji to highlight static data mode
         if let Some(count) = result {
             self.ui.label(ids!(status_label))
-                .set_text(cx, &format!("📦 Loaded static data! {} events processed.", count));
+                .set_text(cx, &format!("🟢 Static Mode | {} events loaded", count));
             self.loaded = true;
         } else {
             self.ui.label(ids!(status_label))
-                .set_text(cx, "❌ Error loading A2UI data");
+                .set_text(cx, "🔴 Error loading A2UI data");
         }
 
         self.ui.redraw(cx);
