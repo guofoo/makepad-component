@@ -57,6 +57,40 @@ These projects are developed under the [Robius](https://github.com/project-robiu
 - **Tooltip** - Four positions with edge detection and auto-flip
 - **Input** - Text input field
 
+### A2UI Renderer (NEW)
+
+A complete **A2UI (Agent-to-UI)** protocol renderer for Makepad, enabling AI agents to generate interactive UIs:
+
+- **Protocol Support** - Full A2UI v0.8 protocol implementation
+- **Streaming** - Real-time SSE streaming for progressive UI updates
+- **Components** - Text, Button, TextField, CheckBox, Slider, Image, Card, Row, Column, List
+- **Data Binding** - JSON Pointer path-based reactive data binding
+- **Two-way Binding** - Interactive components sync back to data model
+- **Actions** - User action events with context resolution
+
+```
+┌─────────────────────────────────────────┐
+│  AI Agent (LLM)                          │
+│         │                                │
+│    A2UI JSON                             │
+│         ▼                                │
+│  ┌─────────────────────────────────┐    │
+│  │   Makepad A2UI Renderer         │    │
+│  │   - A2uiHost (connection)       │    │
+│  │   - A2uiMessageProcessor        │    │
+│  │   - A2uiSurface (widget)        │    │
+│  └─────────────────────────────────┘    │
+│         │                                │
+│    Native UI                             │
+│         ▼                                │
+│  ┌─────────────────────────────────┐    │
+│  │ Desktop / Mobile / Web          │    │
+│  └─────────────────────────────────┘    │
+└─────────────────────────────────────────┘
+```
+
+See [A2UI Documentation (EN)](docs/A2UI_GUIDE_EN.md) | [A2UI 文档 (中文)](docs/A2UI_GUIDE_CN.md)
+
 ### Coming Soon
 
 - Spinner
@@ -130,6 +164,66 @@ cargo makepad wasm build -p component-zoo --release
 # Serve locally (requires Python 3)
 python3 serve_wasm.py 8080
 # Open http://localhost:8080 in your browser
+```
+
+### A2UI Demo
+
+The A2UI demo showcases two modes of the A2UI renderer:
+
+| Mode | Description | Data Source |
+|------|-------------|-------------|
+| **Static** | Product Catalog with filters | Local JSON |
+| **Streaming** | Payment Checkout page | Mock A2A Server |
+
+```bash
+# Terminal 1: Start the mock A2A server
+cargo run -p a2ui-demo --bin mock-a2a-server --features mock-server
+
+# Terminal 2: Run the A2UI demo
+cargo run -p a2ui-demo
+```
+
+Then:
+- Click **"🛒 Product Catalog"** - Load static product list with search, filters, and add-to-cart
+- Click **"💳 Payment Checkout"** - Stream payment page from server with payment method selection
+
+![A2UI Demo](docs/a2ui-demo.png)
+
+---
+
+## Claude Code Skills
+
+This project includes Claude Code skills for Makepad development:
+
+### makepad-screenshot
+
+Automated screenshot debugging for Makepad GUI applications.
+
+```
+/screenshot              # Capture current running app
+/screenshot a2ui-demo    # Capture specific app
+/run-and-capture a2ui-demo  # Build, run and capture
+```
+
+Features:
+- Auto-detect running Makepad processes
+- Bring window to front (macOS)
+- Capture and analyze with Claude's vision
+- Generate UI verification reports
+
+See [skills/makepad-screenshot/SKILL.md](skills/makepad-screenshot/SKILL.md) for details.
+
+### Using Skills with Claude Code
+
+To use these skills, add the skills directory to your Claude Code configuration:
+
+```json
+// ~/.claude.json or project .claude.json
+{
+  "skills": [
+    "./skills"
+  ]
+}
 ```
 
 ---
