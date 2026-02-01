@@ -268,10 +268,8 @@ impl A2aEventStream {
                             "deleteSurface",
                         ] {
                             if obj.contains_key(key) {
-                                eprintln!("[A2A] Found A2UI key: {}", key);
                                 if let Ok(msg) = serde_json::from_value::<A2uiMessage>(data.clone())
                                 {
-                                    eprintln!("[A2A] Parsed A2uiMessage from key {}: {:?}", key, msg);
                                     return Some(A2aStreamEvent::A2uiMessage(msg));
                                 }
                             }

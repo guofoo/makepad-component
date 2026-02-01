@@ -17,3 +17,4 @@ node_modules/
 # Cargo.lock
 .claude
 .codexdebug/
+debug/
