@@ -1,8 +1,8 @@
 //! A2UI Demo Application
 //!
 //! Demonstrates the A2UI protocol rendering with:
-//! - Static mode: Load JSON data directly
-//! - Streaming mode: Connect to A2A server for real-time UI updates
+//! - Static mode: Load product catalog JSON data directly
+//! - Streaming mode: Connect to A2A server for payment checkout UI
 
 use makepad_component::a2ui::*;
 use makepad_widgets::*;
@@ -36,9 +36,9 @@ live_design! {
                     padding: 20.0
                     spacing: 16.0
 
-                    // Title
-                    <Label> {
-                        text: "A2UI Demo - Product Catalog"
+                    // Title - changes based on mode
+                    title_label = <Label> {
+                        text: "A2UI Demo"
                         draw_text: {
                             text_style: <THEME_FONT_BOLD> { font_size: 24.0 }
                             color: #FFFFFF
@@ -46,8 +46,8 @@ live_design! {
                     }
 
                     // Description
-                    <Label> {
-                        text: "This demo shows A2UI protocol rendering in Makepad"
+                    desc_label = <Label> {
+                        text: "Static: Product Catalog | Streaming: Payment Checkout"
                         draw_text: {
                             text_style: <THEME_FONT_REGULAR> { font_size: 14.0 }
                             color: #888888
@@ -63,55 +63,50 @@ live_design! {
 
                         // Load static data button
                         load_btn = <Button> {
-                            text: "Load Static Data"
+                            text: "🛒 Product Catalog"
                             draw_text: { color: #FFFFFF }
                             draw_bg: { color: #0066CC }
                         }
 
                         // Connect to server button
                         connect_btn = <Button> {
-                            text: "Connect to Server"
+                            text: "💳 Payment Checkout"
                             draw_text: { color: #FFFFFF }
                             draw_bg: { color: #00AA66 }
                         }
 
-                        // Disconnect button
-                        disconnect_btn = <Button> {
-                            text: "Disconnect"
-                            draw_text: { color: #FFFFFF }
-                            draw_bg: { color: #CC3333 }
-                            visible: false
-                        }
-
                         // Server URL input
                         server_url = <Label> {
-                            text: "http://localhost:8080/rpc"
-                            draw_text: { color: #888888 }
+                            text: "localhost:8080"
+                            draw_text: { color: #666666 }
                         }
                     }
 
                     // Status label - green color for visibility
                     status_label = <Label> {
-                        text: "Click a button to load A2UI data or connect to server"
+                        text: "Select a demo mode above"
                         draw_text: {
                             color: #4CAF50
                             text_style: { font_size: 16.0 }
                         }
                     }
 
-                    // A2UI Surface container
-                    <View> {
+                    // A2UI Surface container with scroll
+                    <ScrollYView> {
                         width: Fill
                         height: Fill
                         show_bg: true
-                        draw_bg: {
-                            color: #222244
-                        }
-                        padding: 16.0
+                        draw_bg: { color: #222244 }
 
-                        a2ui_surface = <A2uiSurface> {
+                        <View> {
                             width: Fill
-                            height: Fill
+                            height: Fit
+                            padding: 16.0
+
+                            a2ui_surface = <A2uiSurface> {
+                                width: Fill
+                                height: Fit
+                            }
                         }
                     }
                 }
@@ -156,11 +151,6 @@ impl App {
             self.connect_to_server(cx);
         }
 
-        // Handle "Disconnect" button click
-        if self.ui.button(ids!(disconnect_btn)).clicked(&actions) {
-            self.disconnect(cx);
-        }
-
         // Handle A2UI surface actions
         let surface_ref = self.ui.widget(ids!(a2ui_surface));
         if let Some(item) = actions.find_widget_action(surface_ref.widget_uid()) {
@@ -171,17 +161,34 @@ impl App {
                         if let Err(e) = host.send_action(&user_action) {
                             log!("Failed to send action to server: {}", e);
                         }
-                        self.ui.label(ids!(status_label)).set_text(
-                            cx,
-                            &format!("📤 Sent action: {}", user_action.action.name),
-                        );
+                        // Handle payment actions
+                        match user_action.action.name.as_str() {
+                            "confirmPayment" => {
+                                self.ui.label(ids!(status_label)).set_text(
+                                    cx,
+                                    "✅ Processing payment...",
+                                );
+                            }
+                            "cancelPayment" => {
+                                self.ui.label(ids!(status_label)).set_text(
+                                    cx,
+                                    "❌ Payment cancelled",
+                                );
+                            }
+                            _ => {
+                                self.ui.label(ids!(status_label)).set_text(
+                                    cx,
+                                    &format!("📤 Action: {}", user_action.action.name),
+                                );
+                            }
+                        }
                     } else {
                         // Handle locally (static mode)
                         if user_action.action.name == "addToCart" {
                             if let Some(product_id) = user_action.action.context.get("productId") {
                                 self.ui.label(ids!(status_label)).set_text(
                                     cx,
-                                    &format!("🛒 Added product {} to cart!", product_id),
+                                    &format!("🛒 Added {} to cart!", product_id),
                                 );
                             }
                         } else {
@@ -198,6 +205,25 @@ impl App {
                     if let Some(mut surface) = surface_ref.borrow_mut::<A2uiSurface>() {
                         if let Some(processor) = surface.processor_mut() {
                             if let Some(data_model) = processor.get_data_model_mut(&surface_id) {
+                                // Radio button behavior for payment methods (streaming mode)
+                                let payment_methods = [
+                                    "/payment/creditCard",
+                                    "/payment/paypal",
+                                    "/payment/alipay",
+                                    "/payment/wechat",
+                                ];
+
+                                if payment_methods.contains(&path.as_str()) {
+                                    // If setting to true, deselect all others first
+                                    if value == serde_json::Value::Bool(true) {
+                                        for method in &payment_methods {
+                                            if *method != path {
+                                                data_model.set(method, serde_json::Value::Bool(false));
+                                            }
+                                        }
+                                    }
+                                }
+
                                 data_model.set(&path, value.clone());
 
                                 // Computed value: when maxPrice changes, update maxPriceDisplay
@@ -213,7 +239,7 @@ impl App {
                     // Update status to show the change
                     self.ui.label(ids!(status_label)).set_text(
                         cx,
-                        &format!("📝 Updated {}: {}", path, value),
+                        &format!("📝 Updated {}", path),
                     );
                     self.ui.redraw(cx);
                 }
@@ -236,6 +262,9 @@ impl App {
             surface.clear();
         }
 
+        // Update title for streaming mode
+        self.ui.label(ids!(title_label)).set_text(cx, "💳 Payment Checkout");
+
         let config = A2uiHostConfig {
             url: "http://localhost:8080/rpc".to_string(),
             auth_token: None,
@@ -243,9 +272,9 @@ impl App {
 
         let mut host = A2uiHost::new(config);
 
-        match host.connect("Show me a product catalog UI") {
+        match host.connect("Show me a payment checkout UI") {
             Ok(()) => {
-                self.ui.label(ids!(status_label)).set_text(cx, "🔗 Connecting to server...");
+                self.ui.label(ids!(status_label)).set_text(cx, "🔗 Connecting to payment server...");
                 self.host = Some(host);
                 self.is_streaming = true;
                 self.loaded = false; // Reset loaded flag so static data can be reloaded
@@ -280,7 +309,7 @@ impl App {
         for event in events {
             match event {
                 A2uiHostEvent::Connected => {
-                    self.ui.label(ids!(status_label)).set_text(cx, "🔵 Connected! Receiving UI...");
+                    self.ui.label(ids!(status_label)).set_text(cx, "💳 Connected! Loading payment page...");
                 }
                 A2uiHostEvent::Message(msg) => {
                     log!("Received A2uiMessage: {:?}", msg);
@@ -293,16 +322,20 @@ impl App {
                     } else {
                         log!("ERROR: Could not borrow A2uiSurface!");
                     }
-                    self.ui.label(ids!(status_label)).set_text(cx, "🔵 Receiving UI updates...");
+                    self.ui.label(ids!(status_label)).set_text(cx, "💳 Streaming payment UI...");
                 }
-                A2uiHostEvent::TaskStatus { task_id, state } => {
-                    self.ui.label(ids!(status_label)).set_text(cx, &format!("🟣 Task {}: {}", task_id, state));
+                A2uiHostEvent::TaskStatus { task_id: _, state } => {
+                    if state == "completed" {
+                        self.ui.label(ids!(status_label)).set_text(cx, "✅ Payment page ready");
+                    } else {
+                        self.ui.label(ids!(status_label)).set_text(cx, &format!("💳 {}", state));
+                    }
                 }
                 A2uiHostEvent::Error(e) => {
-                    self.ui.label(ids!(status_label)).set_text(cx, &format!("🔴 Error: {}", e));
+                    self.ui.label(ids!(status_label)).set_text(cx, &format!("❌ Error: {}", e));
                 }
                 A2uiHostEvent::Disconnected => {
-                    self.ui.label(ids!(status_label)).set_text(cx, "⚫ Server disconnected");
+                    self.ui.label(ids!(status_label)).set_text(cx, "⚫ Disconnected from server");
                     self.host = None;
                     self.is_streaming = false;
                 }
@@ -323,6 +356,9 @@ impl App {
         if let Some(mut surface) = surface_ref.borrow_mut::<A2uiSurface>() {
             surface.clear();
         }
+
+        // Update title for static mode
+        self.ui.label(ids!(title_label)).set_text(cx, "🛒 Product Catalog");
 
         // Sample A2UI JSON for a product catalog
         let a2ui_json = get_sample_product_catalog();
