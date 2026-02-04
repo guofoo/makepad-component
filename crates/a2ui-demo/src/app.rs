@@ -299,13 +299,48 @@ impl App {
 
         // Apply button colors - keep text white for contrast
         let white = vec4(1.0, 1.0, 1.0, 1.0);
+
+        // Calculate hover/pressed colors (slightly darker versions)
+        let accent_hover = vec4(
+            colors.accent.x * 0.85,
+            colors.accent.y * 0.85,
+            colors.accent.z * 0.85,
+            1.0
+        );
+        let accent_pressed = vec4(
+            colors.accent.x * 0.7,
+            colors.accent.y * 0.7,
+            colors.accent.z * 0.7,
+            1.0
+        );
+        let secondary_hover = vec4(
+            colors.accent_secondary.x * 0.85,
+            colors.accent_secondary.y * 0.85,
+            colors.accent_secondary.z * 0.85,
+            1.0
+        );
+        let secondary_pressed = vec4(
+            colors.accent_secondary.x * 0.7,
+            colors.accent_secondary.y * 0.7,
+            colors.accent_secondary.z * 0.7,
+            1.0
+        );
+
         self.ui.button(ids!(load_btn)).apply_over(cx, live! {
-            draw_bg: { color: (colors.accent) }
+            draw_bg: {
+                color: (colors.accent)
+                color_hover: (accent_hover)
+                color_down: (accent_pressed)
+            }
             draw_text: { color: (white) }
         });
 
         self.ui.button(ids!(connect_btn)).apply_over(cx, live! {
-            draw_bg: { color: (colors.accent_secondary) }
+            draw_bg: {
+                color: (colors.accent_secondary)
+                color_hover: (secondary_hover)
+                color_down: (secondary_pressed)
+            }
             draw_text: { color: (white) }
         });
 
