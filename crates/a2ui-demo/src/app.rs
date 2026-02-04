@@ -5,6 +5,7 @@
 //! - Streaming mode: Connect to A2A server for payment checkout UI
 
 use makepad_component::a2ui::*;
+use makepad_component::widgets::button::MpButtonAction;
 use makepad_widgets::*;
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
@@ -85,9 +86,9 @@ impl Theme {
                 bg_surface: vec4(0.533, 0.553, 0.588, 1.0),      // #888d96 (lighter gray)
                 text_primary: vec4(1.0, 1.0, 1.0, 1.0),          // #FFFFFF
                 text_secondary: vec4(0.85, 0.85, 0.88, 1.0),     // #d9d9e0 (light gray)
-                accent: vec4(0.35, 0.55, 0.85, 1.0),             // #598cd9 (soft blue)
-                accent_secondary: vec4(0.35, 0.70, 0.55, 1.0),   // #59b38c (soft teal)
-                status_color: vec4(0.55, 0.80, 0.55, 1.0),       // #8ccc8c (soft green)
+                accent: vec4(0.0, 0.4, 0.8, 1.0),                // #0066CC (same blue as Dark Purple)
+                accent_secondary: vec4(0.0, 0.667, 0.4, 1.0),    // #00AA66 (same green as Dark Purple)
+                status_color: vec4(0.298, 0.686, 0.314, 1.0),    // #4CAF50 (same green)
             },
         }
     }
@@ -110,6 +111,7 @@ live_design! {
     use makepad_component::theme::colors::*;
     use makepad_component::a2ui::surface::*;
     use makepad_component::widgets::dropdown::*;
+    use makepad_component::widgets::button::*;
 
     // Main Application
     App = {{App}} {
@@ -178,17 +180,25 @@ live_design! {
                         spacing: 10.0
 
                         // Load static data button
-                        load_btn = <Button> {
+                        load_btn = <MpButton> {
                             text: "🛒 Product Catalog"
                             draw_text: { color: #FFFFFF }
-                            draw_bg: { color: #0066CC }
+                            draw_bg: {
+                                color: #0066CC
+                                color_hover: #0055AA
+                                color_pressed: #004488
+                            }
                         }
 
                         // Connect to server button
-                        connect_btn = <Button> {
+                        connect_btn = <MpButton> {
                             text: "🎨 Live Editor"
                             draw_text: { color: #FFFFFF }
-                            draw_bg: { color: #00AA66 }
+                            draw_bg: {
+                                color: #00AA66
+                                color_hover: #009955
+                                color_pressed: #008844
+                            }
                         }
 
                         // Server URL input
@@ -330,7 +340,7 @@ impl App {
             draw_bg: {
                 color: (colors.accent)
                 color_hover: (accent_hover)
-                color_down: (accent_pressed)
+                color_pressed: (accent_pressed)
             }
             draw_text: { color: (white) }
         });
@@ -339,7 +349,7 @@ impl App {
             draw_bg: {
                 color: (colors.accent_secondary)
                 color_hover: (secondary_hover)
-                color_down: (secondary_pressed)
+                color_pressed: (secondary_pressed)
             }
             draw_text: { color: (white) }
         });
@@ -406,14 +416,20 @@ impl App {
             }
         }
 
-        // Handle "Load Static Data" button click
-        if self.ui.button(ids!(load_btn)).clicked(&actions) {
-            self.load_a2ui_data(cx);
+        // Handle "Load Static Data" button click (MpButton)
+        let load_btn_ref = self.ui.widget(ids!(load_btn));
+        if let Some(item) = actions.find_widget_action(load_btn_ref.widget_uid()) {
+            if matches!(item.cast::<MpButtonAction>(), MpButtonAction::Clicked) {
+                self.load_a2ui_data(cx);
+            }
         }
 
-        // Handle "Connect to Server" button click
-        if self.ui.button(ids!(connect_btn)).clicked(&actions) {
-            self.connect_to_server(cx);
+        // Handle "Connect to Server" button click (MpButton)
+        let connect_btn_ref = self.ui.widget(ids!(connect_btn));
+        if let Some(item) = actions.find_widget_action(connect_btn_ref.widget_uid()) {
+            if matches!(item.cast::<MpButtonAction>(), MpButtonAction::Clicked) {
+                self.connect_to_server(cx);
+            }
         }
 
         // Handle A2UI surface actions

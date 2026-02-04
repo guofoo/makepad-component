@@ -94,13 +94,13 @@ impl A2uiThemeColors {
             bg_card: vec4(0.6, 0.62, 0.66, 1.0),             // slightly lighter
             border_color: vec4(0.7, 0.72, 0.76, 1.0),        // light border
             text_primary: vec4(1.0, 1.0, 1.0, 1.0),          // #FFFFFF
-            text_secondary: vec4(0.85, 0.85, 0.88, 1.0),     // light gray
-            accent: vec4(0.35, 0.55, 0.85, 1.0),             // soft blue
-            accent_hover: vec4(0.3, 0.5, 0.8, 1.0),          // slightly darker
-            accent_pressed: vec4(0.25, 0.45, 0.75, 1.0),     // even darker
+            text_secondary: vec4(0.2, 0.2, 0.25, 1.0),       // dark gray for contrast
+            accent: vec4(0.231, 0.51, 0.965, 1.0),           // #3B82F6 (vibrant blue)
+            accent_hover: vec4(0.145, 0.388, 0.922, 1.0),    // slightly darker
+            accent_pressed: vec4(0.114, 0.306, 0.847, 1.0),  // even darker
             input_bg: vec4(0.5, 0.52, 0.56, 1.0),            // medium gray
             slider_track: vec4(0.45, 0.47, 0.51, 1.0),       // darker gray
-            control_fill: vec4(0.35, 0.55, 0.85, 1.0),       // soft blue
+            control_fill: vec4(0.231, 0.51, 0.965, 1.0),     // #3B82F6 (vibrant blue)
         }
     }
 }
