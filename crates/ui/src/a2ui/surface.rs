@@ -276,6 +276,52 @@ live_design! {
         }
     }
 
+    // ============================================================================
+    // A2UI Audio Bars - Neon waveform visualization for audio player
+    // ============================================================================
+    DrawAudioBars = {{DrawAudioBars}} {
+        fn pixel(self) -> vec4 {
+            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+
+            // Draw dark background with rounded corners
+            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 4.0);
+            sdf.fill(vec4(0.08, 0.08, 0.15, 0.9));
+
+            // 5 bars configuration
+            let num_bars = 5.0;
+            let gap = 3.0;
+            let padding = 4.0;
+            let usable_width = self.rect_size.x - padding * 2.0;
+            let bar_width = (usable_width - gap * (num_bars - 1.0)) / num_bars;
+
+            // Draw each bar
+            for i in 0..5 {
+                let fi = float(i);
+                let x = padding + fi * (bar_width + gap);
+
+                // Dynamic height based on time and bar index
+                let phase = fi * 1.2;
+                let wave = sin(self.time * 5.0 + phase) * 0.5 + 0.5;
+                let bar_max_height = self.rect_size.y - padding * 2.0;
+                let height = mix(0.2, wave, self.is_playing) * bar_max_height;
+
+                // Neon gradient: cyan → purple → pink
+                let t = fi / 4.0;
+                let cyan = vec3(0.0, 1.0, 1.0);
+                let purple = vec3(0.5, 0.0, 1.0);
+                let pink = vec3(1.0, 0.2, 0.6);
+                let color = mix(mix(cyan, purple, t), pink, t * t);
+
+                // Draw bar from bottom
+                let y = self.rect_size.y - padding - height;
+                sdf.box(x, y, bar_width, height, 1.5);
+                sdf.fill(vec4(color, 1.0));
+            }
+
+            return sdf.result;
+        }
+    }
+
     // A2UI Surface - Root container for A2UI component rendering
     pub A2uiSurface = {{A2uiSurface}} {
         width: Fill
@@ -432,6 +478,9 @@ live_design! {
         draw_slider_thumb: <DrawA2uiSliderThumb> {
             thumb_color: #FFFFFF
         }
+
+        // Audio bars visualization
+        draw_audio_bars: <DrawAudioBars> {}
 
         // Image resources
         img_headphones: dep("crate://self/resources/headphones.jpg")
@@ -632,6 +681,19 @@ pub struct DrawA2uiSliderThumb {
 }
 
 // ============================================================================
+// DrawAudioBars - for rendering audio waveform visualization
+// ============================================================================
+
+#[derive(Live, LiveHook, LiveRegister)]
+#[repr(C)]
+pub struct DrawAudioBars {
+    #[deref]
+    draw_super: DrawQuad,
+    #[live(0.0)]
+    pub is_playing: f32,
+}
+
+// ============================================================================
 // A2UI Surface Widget
 // ============================================================================
 
@@ -715,6 +777,11 @@ pub struct A2uiSurface {
     #[redraw]
     #[live]
     draw_slider_thumb: DrawA2uiSliderThumb,
+
+    /// Draw audio bars visualization
+    #[redraw]
+    #[live]
+    draw_audio_bars: DrawAudioBars,
 
     /// Image sources (preloaded)
     #[live]
@@ -856,9 +923,9 @@ pub struct A2uiSurface {
     #[rust]
     hovered_audio_player_idx: Option<usize>,
 
-    /// Currently playing audio URL (for Play/Stop toggle)
+    /// Currently playing audio component ID (for Play/Stop toggle)
     #[rust]
-    playing_url: Option<String>,
+    playing_component_id: Option<String>,
 }
 
 impl A2uiSurface {
@@ -1035,14 +1102,14 @@ impl A2uiSurface {
         self.processor.as_mut()
     }
 
-    /// Set the currently playing audio URL (for Play/Stop toggle display)
-    pub fn set_playing_url(&mut self, url: Option<String>) {
-        self.playing_url = url;
+    /// Set the currently playing audio component ID (for Play/Stop toggle display)
+    pub fn set_playing_component(&mut self, component_id: Option<String>) {
+        self.playing_component_id = component_id;
     }
 
-    /// Get the currently playing audio URL
-    pub fn playing_url(&self) -> Option<&String> {
-        self.playing_url.as_ref()
+    /// Get the currently playing audio component ID
+    pub fn playing_component_id(&self) -> Option<&String> {
+        self.playing_component_id.as_ref()
     }
 
     /// Process A2UI JSON messages
@@ -1310,25 +1377,22 @@ impl Widget for A2uiSurface {
                     }
                 }
                 Hit::FingerDown(_) => {
+                    log!("[AudioPlayer] Click idx={}", idx);
                     self.hovered_audio_player_idx = Some(idx);
-                    needs_redraw = true;
-                }
-                Hit::FingerUp(fe) => {
-                    if fe.is_over {
-                        // Emit PlayAudio action
-                        if let Some((component_id, url, title)) = self.audio_player_data.get(idx).cloned() {
-                            cx.widget_action(
-                                self.widget_uid(),
-                                &scope.path,
-                                A2uiSurfaceAction::PlayAudio {
-                                    component_id,
-                                    url,
-                                    title,
-                                },
-                            );
-                        }
-                        needs_redraw = true;
+                    // Trigger play immediately on FingerDown
+                    if let Some((component_id, url, title)) = self.audio_player_data.get(idx).cloned() {
+                        log!("[AudioPlayer] Emitting PlayAudio: {} - {}", title, url);
+                        cx.widget_action(
+                            self.widget_uid(),
+                            &scope.path,
+                            A2uiSurfaceAction::PlayAudio {
+                                component_id,
+                                url,
+                                title,
+                            },
+                        );
                     }
+                    needs_redraw = true;
                 }
                 _ => {}
             }
@@ -2370,8 +2434,8 @@ impl A2uiSurface {
             self.current_scope.as_deref(),
         );
 
-        // Check if this audio is currently playing
-        let is_playing = self.playing_url.as_ref() == Some(&url);
+        // Check if this audio component is currently playing
+        let is_playing = self.playing_component_id.as_ref().map(|s| s.as_str()) == Some(component_id);
 
         let title = audio_player
             .title
@@ -2384,33 +2448,42 @@ impl A2uiSurface {
             .as_ref()
             .map(|a| resolve_string_value_scoped(a, data_model, self.current_scope.as_deref()));
 
-        // Record start position
-        let start_pos = cx.turtle().pos();
+        // Check if we're already inside a Card - avoid nested card backgrounds
+        let already_in_card = self.inside_card;
 
-        // AudioPlayer card layout
-        let walk = Walk {
-            width: Size::fill(),
-            height: Size::fit(),
-            margin: Margin { top: 8.0, bottom: 8.0, left: 0.0, right: 0.0 },
-            ..Walk::default()
-        };
-        let layout = Layout {
-            flow: Flow::Down,
-            padding: Padding {
-                left: 16.0,
-                right: 16.0,
-                top: 12.0,
-                bottom: 12.0,
-            },
-            spacing: 8.0,
-            ..Layout::default()
-        };
+        // Only create card background if not already inside a card
+        if !already_in_card {
+            let walk = Walk {
+                width: Size::fill(),
+                height: Size::fit(),
+                margin: Margin { top: 8.0, bottom: 8.0, left: 0.0, right: 0.0 },
+                ..Walk::default()
+            };
+            let layout = Layout {
+                flow: Flow::Down,
+                padding: Padding {
+                    left: 16.0,
+                    right: 16.0,
+                    top: 12.0,
+                    bottom: 12.0,
+                },
+                spacing: 8.0,
+                ..Layout::default()
+            };
+            self.draw_card.begin(cx, walk, layout);
+            self.inside_card = true;
+        } else {
+            // When inside a card, create a container for audio player content
+            let walk = Walk::fill_fit();
+            let layout = Layout {
+                flow: Flow::Down,
+                spacing: 8.0,
+                ..Layout::default()
+            };
+            cx.begin_turtle(walk, layout);
+        }
 
-        // Draw card background
-        self.draw_card.begin(cx, walk, layout);
-        self.inside_card = true;
-
-        // Title row
+        // Title row with audio bars
         let title_walk = Walk::fill_fit();
         let title_layout = Layout {
             flow: Flow::right(),
@@ -2424,7 +2497,7 @@ impl A2uiSurface {
         self.draw_card_text.text_style.font_size = 20.0;
         self.draw_card_text.draw_walk(cx, Walk::fit(), Align::default(), "🎵");
 
-        // Title and artist column
+        // Title and artist column (flexible width, not fill)
         let info_walk = Walk::fit();
         let info_layout = Layout {
             flow: Flow::Down,
@@ -2446,6 +2519,22 @@ impl A2uiSurface {
         }
 
         cx.end_turtle();
+
+        // Audio bars visualization (placed right after title/artist)
+        let bars_walk = Walk {
+            width: Size::Fixed(50.0),
+            height: Size::Fixed(35.0),
+            margin: Margin { left: 16.0, ..Margin::default() },
+            ..Walk::default()
+        };
+        self.draw_audio_bars.is_playing = if is_playing { 1.0 } else { 0.0 };
+        self.draw_audio_bars.draw_walk(cx, bars_walk);
+
+        // Request next frame for continuous animation when playing
+        if is_playing {
+            cx.new_next_frame();
+        }
+
         cx.end_turtle();
 
         // Play button
@@ -2496,15 +2585,26 @@ impl A2uiSurface {
             self.audio_player_areas.push(button_area);
         }
 
-        self.inside_card = false;
-        self.draw_card.end(cx);
+        // Only end card if we started it
+        if !already_in_card {
+            self.inside_card = false;
+            self.draw_card.end(cx);
+        } else {
+            // End the container turtle we created
+            cx.end_turtle();
+        }
 
         // Store metadata
         self.audio_player_data.push((
             component_id.to_string(),
-            url,
-            title,
+            url.clone(),
+            title.clone(),
         ));
+
+        // Debug: check area rect
+        let rect = button_area.rect(cx);
+        log!("[render_audio_player] idx={}, id={}, rect=({:.0},{:.0} {:.0}x{:.0})",
+             audio_player_idx, component_id, rect.pos.x, rect.pos.y, rect.size.x, rect.size.y);
     }
 }
 
@@ -2572,10 +2672,10 @@ impl A2uiSurfaceRef {
         None
     }
 
-    /// Set the currently playing audio URL (for Play/Stop toggle display)
-    pub fn set_playing_url(&self, url: Option<String>) {
+    /// Set the currently playing audio component ID (for Play/Stop toggle display)
+    pub fn set_playing_component(&self, component_id: Option<String>) {
         if let Some(mut inner) = self.borrow_mut() {
-            inner.set_playing_url(url);
+            inner.set_playing_component(component_id);
         }
     }
 }

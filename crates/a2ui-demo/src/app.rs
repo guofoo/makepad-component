@@ -254,6 +254,10 @@ pub struct App {
     #[rust]
     host: Option<A2uiHost>,
 
+    /// Live SSE connection for real-time streaming updates
+    #[rust]
+    live_host: Option<A2uiHost>,
+
     #[rust]
     is_streaming: bool,
 
@@ -271,7 +275,7 @@ pub struct App {
 
     /// Currently playing audio URL (None = not playing)
     #[rust]
-    playing_audio_url: Option<String>,
+    playing_audio_component_id: Option<String>,
 }
 
 impl LiveRegister for App {
@@ -485,9 +489,9 @@ impl App {
                     }
                     self.ui.redraw(cx);
                 }
-                A2uiSurfaceAction::PlayAudio { component_id: _, url, title } => {
-                    // Toggle: if same URL is playing, stop it
-                    if self.playing_audio_url.as_ref() == Some(&url) {
+                A2uiSurfaceAction::PlayAudio { component_id, url, title } => {
+                    // Toggle: if same component is playing, stop it
+                    if self.playing_audio_component_id.as_ref() == Some(&component_id) {
                         // Stop playing
                         #[cfg(target_os = "macos")]
                         {
@@ -495,11 +499,11 @@ impl App {
                                 .args(["-9", "afplay"])
                                 .status();
                         }
-                        self.playing_audio_url = None;
+                        self.playing_audio_component_id = None;
 
                         // Update surface state for button display
                         let surface = self.ui.a2ui_surface(ids!(a2ui_surface));
-                        surface.set_playing_url(None);
+                        surface.set_playing_component(None);
 
                         self.ui.label(ids!(status_label)).set_text(
                             cx,
@@ -516,11 +520,11 @@ impl App {
                         }
 
                         log!("PlayAudio: {} - {}", title, url);
-                        self.playing_audio_url = Some(url.clone());
+                        self.playing_audio_component_id = Some(component_id.clone());
 
                         // Update surface state for button display
                         let surface = self.ui.a2ui_surface(ids!(a2ui_surface));
-                        surface.set_playing_url(Some(url.clone()));
+                        surface.set_playing_component(Some(component_id.clone()));
 
                         self.ui.label(ids!(status_label)).set_text(
                             cx,
@@ -635,6 +639,10 @@ impl App {
             log!("connect_to_server: Clearing existing host");
             self.host = None;
         }
+        if self.live_host.is_some() {
+            log!("connect_to_server: Clearing existing live_host");
+            self.live_host = None;
+        }
 
         // Clear surface BEFORE connecting - this ensures a fresh start
         // The BeginRendering message will create a new surface
@@ -646,6 +654,7 @@ impl App {
         // Update title for streaming mode
         self.ui.label(ids!(title_label)).set_text(cx, "🎨 Live A2UI Editor");
 
+        // Connect to /rpc for initial UI load
         let config = A2uiHostConfig {
             url: "http://localhost:8081/rpc".to_string(),
             auth_token: None,
@@ -661,6 +670,9 @@ impl App {
                 self.live_mode = true;
                 self.last_poll_time = cx.seconds_since_app_start();
                 self.loaded = false;
+
+                // Also connect to /live for real-time streaming updates
+                self.connect_live_stream(cx);
             }
             Err(e) => {
                 self.ui.label(ids!(status_label)).set_text(cx, &format!("❌ Connection failed: {}", e));
@@ -668,6 +680,27 @@ impl App {
         }
 
         self.ui.redraw(cx);
+    }
+
+    fn connect_live_stream(&mut self, _cx: &mut Cx) {
+        // Connect to /live SSE endpoint for real-time component updates (using GET)
+        let live_config = A2uiHostConfig {
+            url: "http://localhost:8081/live".to_string(),
+            auth_token: None,
+        };
+
+        let mut live_host = A2uiHost::new(live_config);
+
+        // Use connect_sse for GET-based SSE connection
+        match live_host.connect_sse() {
+            Ok(()) => {
+                log!("🔴 Connected to /live SSE for real-time streaming");
+                self.live_host = Some(live_host);
+            }
+            Err(e) => {
+                log!("Failed to connect to /live: {}", e);
+            }
+        }
     }
 
     fn reconnect_live(&mut self, cx: &mut Cx) {
@@ -783,6 +816,52 @@ impl App {
         }
     }
 
+    /// Poll for real-time streaming updates from /live SSE endpoint
+    fn poll_live_host(&mut self, cx: &mut Cx) {
+        let Some(live_host) = &mut self.live_host else {
+            return;
+        };
+
+        let events = live_host.poll_all();
+        if events.is_empty() {
+            return;
+        }
+
+        let surface_ref = self.ui.widget(ids!(a2ui_surface));
+        let mut needs_redraw = false;
+
+        for event in events {
+            match event {
+                A2uiHostEvent::Connected => {
+                    log!("Live stream connected - ready for real-time updates");
+                }
+                A2uiHostEvent::Message(msg) => {
+                    log!("🔴 LIVE: Received streaming component: {:?}", msg);
+                    if let Some(mut surface) = surface_ref.borrow_mut::<A2uiSurface>() {
+                        let events = surface.process_message(msg);
+                        log!("🔴 LIVE: Processed {} events", events.len());
+                    }
+                    self.ui.label(ids!(status_label)).set_text(cx, "🔴 Streaming component...");
+                    needs_redraw = true;
+                }
+                A2uiHostEvent::TaskStatus { task_id: _, state } => {
+                    log!("Live stream task status: {}", state);
+                }
+                A2uiHostEvent::Error(e) => {
+                    log!("Live stream error: {}", e);
+                }
+                A2uiHostEvent::Disconnected => {
+                    log!("Live stream disconnected, will reconnect...");
+                    self.live_host = None;
+                }
+            }
+        }
+
+        if needs_redraw {
+            self.ui.redraw(cx);
+        }
+    }
+
     fn load_a2ui_data(&mut self, cx: &mut Cx) {
         // Disconnect from server if connected
         if self.host.is_some() {
@@ -852,15 +931,24 @@ impl AppMain for App {
             self.poll_host(cx);
         }
 
+        // Poll for real-time streaming updates from /live
+        if self.live_host.is_some() {
+            self.poll_live_host(cx);
+        }
+
         // Live mode: keep the event loop running for polling
         if self.live_mode {
             if self.host.is_none() {
                 // Reconnect periodically to get updates
                 let current_time = cx.seconds_since_app_start();
-                if current_time - self.last_poll_time > 1.0 {
+                if current_time - self.last_poll_time > 0.2 {
                     self.last_poll_time = current_time;
                     self.reconnect_live(cx);
                 }
+            }
+            // Reconnect live stream if disconnected
+            if self.live_host.is_none() {
+                self.connect_live_stream(cx);
             }
             // Always request next frame to keep polling loop active
             cx.new_next_frame();
